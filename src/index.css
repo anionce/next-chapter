@@ -1,0 +1,152 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@font-face {
+  font-family: 'Source Serif Variable';
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url('./assets/fonts/source-serif-4-variable.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Source Serif Variable';
+  font-style: italic;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url('./assets/fonts/source-serif-4-italic.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Work Sans Variable';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('./assets/fonts/work-sans-variable.woff2') format('woff2');
+}
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: 'Work Sans Variable', -apple-system, sans-serif;
+  --font-serif: 'Source Serif Variable', Georgia, serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-full: 999px;
+}
+
+/* Next Chapter — blush / berry palette. Warm neutrals biased toward the
+   accent hue rather than plain grey; destructive stays in a distinct
+   terracotta family so it never reads as "just a duller pink". */
+:root {
+  --background: #F7EEE9;
+  --foreground: #2E2024;
+  --card: #F1DFD8;
+  --card-foreground: #2E2024;
+  --popover: #F7EEE9;
+  --popover-foreground: #2E2024;
+  --primary: #A24361;
+  --primary-foreground: #F7EEE9;
+  --secondary: #E8CFC6;
+  --secondary-foreground: #2E2024;
+  --muted: #E8CFC6;
+  --muted-foreground: #7C5E62;
+  --accent: #F2D9DF;
+  --accent-foreground: #7C2F49;
+  --destructive: #A2503A;
+  --destructive-foreground: #F7EEE9;
+  --border: #DEC4C0;
+  --input: #DEC4C0;
+  --ring: #A24361;
+  --radius: 0.9rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --background: #241A1D;
+    --foreground: #F3E6E4;
+    --card: #2E2124;
+    --card-foreground: #F3E6E4;
+    --popover: #241A1D;
+    --popover-foreground: #F3E6E4;
+    --primary: #E8A0B4;
+    --primary-foreground: #241A1D;
+    --secondary: #1B1315;
+    --secondary-foreground: #F3E6E4;
+    --muted: #1B1315;
+    --muted-foreground: #C9A8AC;
+    --accent: #3A262A;
+    --accent-foreground: #F0B7C2;
+    --destructive: #D98F73;
+    --destructive-foreground: #241A1D;
+    --border: #3D2D2F;
+    --input: #3D2D2F;
+    --ring: #E8A0B4;
+  }
+}
+
+.dark {
+  --background: #241A1D;
+  --foreground: #F3E6E4;
+  --card: #2E2124;
+  --card-foreground: #F3E6E4;
+  --popover: #241A1D;
+  --popover-foreground: #F3E6E4;
+  --primary: #E8A0B4;
+  --primary-foreground: #241A1D;
+  --secondary: #1B1315;
+  --secondary-foreground: #F3E6E4;
+  --muted: #1B1315;
+  --muted-foreground: #C9A8AC;
+  --accent: #3A262A;
+  --accent-foreground: #F0B7C2;
+  --destructive: #D98F73;
+  --destructive-foreground: #241A1D;
+  --border: #3D2D2F;
+  --input: #3D2D2F;
+  --ring: #E8A0B4;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+@layer base {
+  ::-webkit-scrollbar {
+    display: none;
+  }
+  * {
+    scrollbar-width: none;
+  }
+}
