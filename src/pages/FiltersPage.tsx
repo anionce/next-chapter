@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useLibrary } from "@/hooks/useLibrary"
 import { rankBooks } from "@/lib/score"
 import { searchExternalByFilters, bookKey } from "@/lib/externalBooks"
-import { GENRES, genreLabel } from "@/lib/genres"
+import { SELECTABLE_GENRES, genreLabel } from "@/lib/genres"
 import { useT } from "@/lib/i18n"
 import type { AdvancedFilters } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -48,7 +48,7 @@ export function FiltersPage() {
   const { data: externalResults = [], isFetching: externalFetching } = useQuery({
     queryKey: ["filters-external", filters.author, filters.genre, filters.pace],
     queryFn: () =>
-      searchExternalByFilters({ author: filters.author, genre: filters.genre, pace: filters.pace, excludeKeys, limit: 50 }),
+      searchExternalByFilters({ author: filters.author, genre: filters.genre, pace: filters.pace, excludeKeys, limit: 200 }),
     enabled: filters.source === "external",
     staleTime: 5 * 60 * 1000,
   })
@@ -116,7 +116,7 @@ export function FiltersPage() {
           {t("filters.genre")}
           <select {...register("genre")} className={fieldClass()}>
             <option value="">{t("filters.genreAny")}</option>
-            {GENRES.map((g) => (
+            {SELECTABLE_GENRES.map((g) => (
               <option key={g} value={g}>
                 {genreLabel(g, lang)}
               </option>

@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { useReadingStore } from "@/store/useReadingStore"
-import { GENRES, genreLabel } from "@/lib/genres"
+import { SELECTABLE_GENRES, genreLabel } from "@/lib/genres"
 import { useT } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
@@ -30,7 +30,7 @@ export function GenrePage() {
       <p className="mb-6 text-sm text-muted-foreground">{t("genre.subtitle")}</p>
 
       <div className="mb-6 flex flex-wrap gap-2">
-        {GENRES.map((genre) => (
+        {SELECTABLE_GENRES.map((genre) => (
           <button
             key={genre}
             type="button"

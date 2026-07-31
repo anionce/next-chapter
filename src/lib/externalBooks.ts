@@ -144,8 +144,7 @@ interface HardcoverBook {
   title: string
   pages: number | null
   release_year: number | null
-  users_count: number
-  ratings_count: number
+  editions_count: number
   cached_tags: HardcoverCachedTags
   contributions?: { author: { name: string } | null }[]
   editions?: HardcoverEdition[]
@@ -158,8 +157,7 @@ const BOOK_FIELDS = `
   title
   pages
   release_year
-  users_count
-  ratings_count
+  editions_count
   cached_tags
   contributions { author { name } }
   editions(limit: 5) { isbn_13 isbn_10 }
@@ -167,18 +165,25 @@ const BOOK_FIELDS = `
 `
 
 /**
- * "Known and normal" filter, now backed by real signal instead of a proxy.
- * Open Library had no trustworthy popularity field (its own ratings_count
- * let self-published web-fiction out-vote real books), which is why the old
- * version of this file needed an ISBN + edition_count workaround. Hardcover's
- * `users_count` (people who've shelved the book) and `ratings_count` are
- * real Hardcover-community engagement numbers — no proxy needed.
+ * "Known and normal" filter, now based purely on `editions_count` (a direct
+ * scalar field on `books`, not a relation — sortable/filterable server-side)
+ * — not `users_count`/`ratings_count`. Those measure engagement *within*
+ * Hardcover's own (comparatively small, newer) community specifically,
+ * which can badly understate a book's real-world reach: "Out of My Mind" (a
+ * genuine #1 NYT bestseller) had only 262 Hardcover users but 19 real
+ * editions — confirmed live, alongside junk duplicate catalog stubs with 0
+ * editions and 0 users, both ends of the check matching real-world fact.
+ * How many times a book has actually been reprinted/republished is a
+ * signal about the book itself, independent of any one platform's size.
+ * Threshold picked empirically: at editions_count >= 5, every one of the 15
+ * selectable genres has 300+ distinct authors passing (weakest: Self-Help
+ * at 369) — comfortably above the 200-result target; at >= 10 the weakest
+ * genre drops to 176, already short of 200.
  */
-const MIN_USERS = 15
-const MIN_RATINGS = 5
+const MIN_EDITIONS = 5
 
 function passesQualityBar(doc: HardcoverBook): boolean {
-  return doc.users_count >= MIN_USERS && doc.ratings_count >= MIN_RATINGS
+  return doc.editions_count >= MIN_EDITIONS
 }
 
 function pickIsbn(editions: HardcoverEdition[] | undefined): string | undefined {
@@ -206,7 +211,12 @@ function mapHardcoverBook(doc: HardcoverBook, fallbackGenre: string): Book | nul
   // "closest we found" disclaimer); a wrong match presented with confidence
   // is not.
   const moods = moodsFromHardcoverTags(doc.cached_tags ?? {})
-  const genre = genreFromHardcoverTags(doc.cached_tags?.Genre)
+  // `fallbackGenre` is a real searched-for Genre only when this came from a
+  // genre-driven query (buildQueries sets "Unclassified" for mood/generic
+  // searches) — only then does "what we searched for" mean anything to
+  // prefer.
+  const preferred = fallbackGenre !== "Unclassified" ? (fallbackGenre as Genre) : undefined
+  const genre = genreFromHardcoverTags(doc.cached_tags?.Genre, preferred)
 
   return {
     id: `external-hc-${doc.id}`,
@@ -242,22 +252,12 @@ function capPerAuthor(books: Book[], maxPerAuthor: number): Book[] {
   return out
 }
 
-/**
- * Quality-passing is a low bar (`users_count >= 15`), not a "this is
- * well-known" bar — a query can return candidates ranging from a handful of
- * mega-hits with 10,000+ users down to books that just barely clear 15.
- * Shuffling that *entire* range uniformly gave every one of them equal odds
- * of being "today's pick" — confirmed live: a mood search whose pool topped
- * out around Harry Potter (15,787 users) instead surfaced a 262-user book,
- * pure luck of the shuffle. `books` arrives already sorted by `users_count`
- * desc (the query's own `order_by`), so slicing to the top N *before*
- * shuffling keeps genuine variety while keeping every candidate meaningfully
- * well-known, not just technically-not-obscure.
- */
-const POPULARITY_POOL = 70
-
-/** Fisher-Yates — `order_by: users_count desc` is deterministic, so without
- * this the same top-N books would win on every single visit, forever. */
+/** Fisher-Yates — `order_by: editions_count desc` is deterministic, so
+ * without this the same top-N books would win on every single visit,
+ * forever. No separate "top N by popularity" pre-shuffle slice anymore —
+ * `editions_count >= MIN_EDITIONS` *is* the popularity bar now, and the
+ * target is a genuinely wide, diverse pool (200+ per genre), not a small
+ * curated shortlist, so there's nothing left to additionally narrow. */
 function shuffle<T>(arr: T[]): T[] {
   const out = [...arr]
   for (let i = out.length - 1; i > 0; i--) {
@@ -321,7 +321,7 @@ async function fetchByTag(ref: TagQuery, limit: number): Promise<Book[]> {
     query FetchByTag($tag: String!, $categoryId: Int!, $limit: Int!) {
       books(
         where: {taggings: {tag: {tag: {_eq: $tag}, tag_category_id: {_eq: $categoryId}}}}
-        order_by: {users_count: desc}
+        order_by: {editions_count: desc}
         limit: $limit
       ) {
         ${BOOK_FIELDS}
@@ -339,7 +339,11 @@ async function fetchByTag(ref: TagQuery, limit: number): Promise<Book[]> {
     const book = mapHardcoverBook(doc, ref.fallbackGenre)
     if (book) books.push(book)
   }
-  return shuffle(capPerAuthor(books, 3).slice(0, POPULARITY_POOL))
+  // Shuffling the *entire* capped pool (not a pre-sliced "top N") is what
+  // makes both the composition and order of the final result vary across
+  // visits — `order_by: editions_count desc` + a fixed `limit` alone would
+  // fetch the exact same deterministic set from Hardcover every time.
+  return shuffle(capPerAuthor(books, 3))
 }
 
 /**
@@ -353,10 +357,14 @@ export async function searchExternalBooks(
   genre: string | null | undefined,
   moods: MoodId[],
   excludeKeys: Set<string>,
-  limit = 6
+  limit = 200
 ): Promise<Book[]> {
   const queries = buildQueries(genre, moods)
-  const perQueryLimit = Math.max(20, Math.ceil((limit * 6) / queries.length))
+  // Fetch a pool well beyond `limit` per axis — the weakest genre (Self-Help)
+  // has its *entire* real pool (467 books) inside this range, and shuffling
+  // that whole thing (not just its top N) is what makes both which books
+  // show up and their order vary across visits, not just the order.
+  const perQueryLimit = Math.min(700, Math.max(200, limit * 3))
   const results = await Promise.all(queries.map((ref) => fetchByTag(ref, perQueryLimit)))
 
   const seen = new Set(excludeKeys)
@@ -382,12 +390,16 @@ export async function searchExternalBooks(
 }
 
 /**
- * Direct author/genre search for the Filters page's "search outside" mode.
- * Hardcover's `_ilike`/fuzzy operators are disabled on the public API, so
- * author matching goes through the Typesense-backed `search` endpoint
- * (query_type: "Author") to resolve fuzzy author names to ids first, then
- * filters the main `books` query by those ids — unlike the mood-driven
- * `searchExternalBooks`, this is a precise, stable, non-shuffled search.
+ * Direct author/genre/pace search for the Filters page's "search outside"
+ * mode. Hardcover's `_ilike`/fuzzy operators are disabled on the public
+ * API, so author matching goes through the Typesense-backed `search`
+ * endpoint (query_type: "Author") to resolve fuzzy author names to ids
+ * first, then filters the main `books` query by those ids.
+ *
+ * Diversification (author cap + shuffle, same as `searchExternalBooks`)
+ * only applies when there's no author filter — if you searched for a
+ * specific author, you want *their* catalog, not one book from them capped
+ * down like every other candidate.
  */
 export async function searchExternalByFilters(params: {
   author?: string
@@ -396,9 +408,10 @@ export async function searchExternalByFilters(params: {
   excludeKeys?: Set<string>
   limit?: number
 }): Promise<Book[]> {
-  const limit = params.limit ?? 20
+  const limit = params.limit ?? 200
+  const fetchLimit = params.author ? limit : Math.min(700, Math.max(200, limit * 3))
   const conditions: string[] = []
-  const variables: Record<string, unknown> = { limit }
+  const variables: Record<string, unknown> = { limit: fetchLimit }
   let variableDecls = "$limit: Int!"
 
   if (params.author) {
@@ -433,7 +446,7 @@ export async function searchExternalByFilters(params: {
   const where = conditions.length > 0 ? `{_and: [${conditions.join(", ")}]}` : "{}"
   const query = `
     query SearchByFilters(${variableDecls}) {
-      books(where: ${where}, order_by: {users_count: desc}, limit: $limit) {
+      books(where: ${where}, order_by: {editions_count: desc}, limit: $limit) {
         ${BOOK_FIELDS}
       }
     }
@@ -447,5 +460,7 @@ export async function searchExternalByFilters(params: {
     const book = mapHardcoverBook(doc, fallbackGenre)
     if (book && !excludeKeys.has(bookKey(book.title))) books.push(book)
   }
-  return books
+  // Same diversification as searchExternalBooks — skipped when browsing a
+  // specific author's catalog, where "one book per author" would be wrong.
+  return params.author ? books.slice(0, limit) : shuffle(capPerAuthor(books, 3)).slice(0, limit)
 }

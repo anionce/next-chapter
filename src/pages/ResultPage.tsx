@@ -67,7 +67,7 @@ export function ResultPage() {
     isFetching: externalFetching,
   } = useQuery({
     queryKey: ["external-books", genreForSearch, moodsForSearch],
-    queryFn: () => searchExternalBooks(genreForSearch, moodsForSearch, excludeKeys, 70),
+    queryFn: () => searchExternalBooks(genreForSearch, moodsForSearch, excludeKeys, 200),
     enabled: source === "external",
     staleTime: 10 * 60 * 1000,
   })
@@ -85,12 +85,12 @@ export function ResultPage() {
   }, [source, books, externalBooks, excludeKeys, addedKeys, excludeNonFiction])
 
   const ranked = useMemo(() => {
-    const all = rankBooks(candidates, { moods: moodsForSearch, genre: genreForSearch }, 70)
+    const all = rankBooks(candidates, { moods: moodsForSearch, genre: genreForSearch }, 200)
     return all.filter((r) => !dismissedIds.has(r.book.id))
   }, [candidates, moodsForSearch, genreForSearch, dismissedIds])
 
   const featured = (selectedId && ranked.find((r) => r.book.id === selectedId)) || ranked[0]
-  const others = ranked.filter((r) => r.book.id !== featured?.book.id).slice(0, 69)
+  const others = ranked.filter((r) => r.book.id !== featured?.book.id).slice(0, 199)
 
   const [backPath, backKey] = BACK[lastSource ?? ""] ?? ["/", "back.home"]
 

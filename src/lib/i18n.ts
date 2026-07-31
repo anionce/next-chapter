@@ -154,7 +154,7 @@ const en: Dict = {
   "result.why": "Why this and not another",
   "result.readThis": "Read this.",
   "result.addWishlist": "Add to my wishlist",
-  "result.notToday": "Not today",
+  "result.notToday": "Next",
   "result.otherOptions": "Other options for today",
   "result.pagesUnknown": "page count unknown",
 

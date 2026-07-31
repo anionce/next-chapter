@@ -26,6 +26,20 @@ export const GENRES = [
 
 export type Genre = (typeof GENRES)[number]
 
+/**
+ * Genres offered in the Genre/Filters pickers — everything except "Crime".
+ * Kept in `GENRES`/`Genre` as a valid *classification outcome* (a real book
+ * can still legitimately end up tagged Crime via `genreFromHardcoverTags`/
+ * `pickGenreFromTags`), just not offered as a search input: on Hardcover,
+ * "Crime" is almost always a secondary tag that loses the majority vote to
+ * Thriller/Mystery/Classics on the same book — confirmed live, searching
+ * Crime returned 51 candidates and only ~6 actually classified as Crime
+ * themselves, the same "genre proxy answers a different question than the
+ * one asked" problem that got Nature/Gothic/etc. dropped from the mood
+ * picker. Same rule, applied to genre this time.
+ */
+export const SELECTABLE_GENRES = GENRES.filter((g) => g !== "Crime")
+
 const GENRE_LABEL: Record<Lang, Record<Genre, string>> = {
   es: {
     Thriller: "Thriller",
@@ -180,8 +194,24 @@ export interface HardcoverTagCount {
  * so instead of counting *how many tags* point to a genre, this sums the
  * real vote weight behind each one. A book with one stray low-vote tag
  * can no longer outrank the genre backed by hundreds of real votes.
+ *
+ * `preferred` is the genre a search was actually looking for (when this
+ * book came from a genre-driven Hardcover query, not a mood/generic one).
+ * Per-book genre-tag samples on Hardcover are frequently tiny — single
+ * digits — confirmed live: "Six of Crows" (5,495 readers) has just 11
+ * total Fantasy votes and 0 Thriller despite being found via the Thriller
+ * tag; "Jurassic Park" split Science Fiction 7 vs. Thriller 3. Picking
+ * a pure vote-count "winner" at that scale mostly measures noise, not a
+ * real editorial signal — it was silently reclassifying most Thriller
+ * search results as something else, discarding real matches. So: a book
+ * found by searching a specific genre already has genuine support for it
+ * (the query only returns books with a real tagging), and that stays the
+ * pick unless another genre's vote count *clearly* dominates (2x+) — a
+ * high bar, not a tiebreaker, so a genuine mismatch (a stray tag with
+ * near-zero support against a real majority elsewhere) still gets
+ * overridden the way it should.
  */
-export function genreFromHardcoverTags(tags: HardcoverTagCount[] | undefined): string {
+export function genreFromHardcoverTags(tags: HardcoverTagCount[] | undefined, preferred?: Genre): string {
   const counts = new Map<Genre, number>()
   for (const t of tags ?? []) {
     const genre = HARDCOVER_GENRE_TAG_TO_GENRE[t.tag.toLowerCase()]
@@ -196,5 +226,10 @@ export function genreFromHardcoverTags(tags: HardcoverTagCount[] | undefined): s
       best = genre
     }
   }
+
+  if (preferred && counts.has(preferred) && bestCount < counts.get(preferred)! * 2) {
+    return preferred
+  }
+
   return best ?? "Unclassified"
 }
