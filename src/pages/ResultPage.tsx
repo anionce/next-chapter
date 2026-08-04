@@ -66,7 +66,15 @@ export function ResultPage() {
     queryKey: ["external-books", genreForSearch, moodsForSearch],
     queryFn: () => searchExternalBooks(genreForSearch, moodsForSearch, excludeKeys, 200),
     enabled: source === "external",
-    staleTime: 10 * 60 * 1000,
+    // 0, deliberately: the whole point of shuffling the candidate pool
+    // server-round-trip to round-trip is that revisiting the same mood/genre
+    // gives a genuinely different pick — a positive staleTime here would
+    // silently reuse the same already-shuffled result on every revisit
+    // within the window, which reads as "always the same books" even though
+    // the shuffle itself works. Safe to refetch on every mount: the loading
+    // state below already covers isFetching, not just isLoading, so this
+    // can't reintroduce the old flash-of-stale-content bug.
+    staleTime: 0,
   })
 
   const candidates = useMemo(() => {
