@@ -1,20 +1,19 @@
-const HARDCOVER_API_URL = "https://api.hardcover.app/v1/graphql"
-const API_KEY = import.meta.env.VITE_HARDCOVER_API_KEY
+const HARDCOVER_PROXY_URL = "/.netlify/functions/hardcover"
 
 /**
- * Thin GraphQL client for Hardcover's free API (requires a personal API key
- * in `.env` as `VITE_HARDCOVER_API_KEY` — a personal-use-only setup, since
- * the key is tied to one Hardcover account and ships in the client bundle).
- * Fails soft: a missing key or any network/GraphQL error just returns null,
- * never throws — every caller treats "no external data" as a normal case,
- * same contract the old Open Library integration had.
+ * Thin client for the Hardcover GraphQL proxy (netlify/functions/hardcover.ts,
+ * mirrored for local dev by the Vite plugin in vite.config.ts). The browser
+ * never talks to Hardcover directly: its API blocks arbitrary browser
+ * origins (CORS), and a direct call would also ship the personal API key in
+ * the client bundle. Fails soft: a missing key, network error, or GraphQL
+ * error just returns null, never throws — every caller treats "no external
+ * data" as a normal case, same contract the old Open Library integration had.
  */
 export async function hardcoverQuery<T>(query: string, variables?: Record<string, unknown>): Promise<T | null> {
-  if (!API_KEY) return null
   try {
-    const res = await fetch(HARDCOVER_API_URL, {
+    const res = await fetch(HARDCOVER_PROXY_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${API_KEY}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query, variables }),
     })
     if (!res.ok) return null
