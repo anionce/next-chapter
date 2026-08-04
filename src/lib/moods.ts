@@ -38,20 +38,33 @@ export interface MoodOption {
 // Hardcover tag of any kind, matched via `book.season` instead) and
 // saga-familiar (no tag exists for it at all) were already excluded for the
 // same underlying reason: a mood you can pick but that can never surface a
-// real match is a dead end, not a feature. `MoodId` keeps all 18 values
-// (imported CSV data may still carry the dropped ones), only the picker
-// list is restricted to these 9.
+// real match is a dead end, not a feature.
+//
+// Two more moods were cut for the same reason, on an explicit 150-book
+// floor: acogedor/Cozy and reconfortante/Feel-Good only have 72 and 86
+// books *total* on all of Hardcover that both carry the tag and pass the
+// editions_count>=5 quality gate (verified live via a books_aggregate
+// count) — a hard ceiling of Hardcover's own tagging volume, not something
+// any code change can grow. The other 7 all clear 5,800+.
+//
+// `MoodId` keeps all 18 values (imported CSV data may still carry the
+// dropped ones), only the picker list is restricted to these 7.
 export const MOOD_OPTIONS: MoodOption[] = [
-  { id: "acogedor", label: "Acogedor", emoji: "🪵" },
   { id: "atmosferico", label: "Atmosférico", emoji: "🌧" },
   { id: "que-hace-pensar", label: "Que hace pensar", emoji: "🧠" },
   { id: "emotivo", label: "Emotivo", emoji: "❤️" },
   { id: "suspense", label: "De suspense", emoji: "🔎" },
   { id: "oscuro", label: "Oscuro", emoji: "🕯" },
   { id: "tragico", label: "Trágico", emoji: "💔" },
-  { id: "reconfortante", label: "Reconfortante", emoji: "😊" },
   { id: "inquietante", label: "Inquietante", emoji: "😨" },
 ]
+
+/** For sanitizing `selectedMoods` read from persisted storage — a mood
+ * dropped from MOOD_OPTIONS (like acogedor/reconfortante) can still be
+ * sitting in an existing user's localStorage from before the cut, and
+ * without this it's stuck: no chip renders for it to toggle off, but it'd
+ * still show up in the summary text and count toward search/scoring. */
+export const SELECTABLE_MOOD_IDS: ReadonlySet<MoodId> = new Set(MOOD_OPTIONS.map((o) => o.id))
 
 export const MOOD_LABEL: Record<MoodId, string> = Object.fromEntries(
   MOOD_OPTIONS.map((m) => [m.id, m.label])

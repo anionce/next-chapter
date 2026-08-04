@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { MoodChip } from "@/components/mood/MoodChip"
-import { MOOD_OPTIONS, formatMoodListLang } from "@/lib/moods"
+import { MOOD_OPTIONS, SELECTABLE_MOOD_IDS, formatMoodListLang } from "@/lib/moods"
 import { useT } from "@/lib/i18n"
 import { useReadingStore } from "@/store/useReadingStore"
 import { useLibrary } from "@/hooks/useLibrary"
@@ -9,8 +9,12 @@ import { useLibrary } from "@/hooks/useLibrary"
 export function MoodPage() {
   const navigate = useNavigate()
   const { t, lang } = useT()
-  const { selectedMoods, toggleMood, setSource } = useReadingStore()
+  const { selectedMoods: rawSelectedMoods, toggleMood, setSource } = useReadingStore()
   const books = useLibrary()
+  // A mood dropped from MOOD_OPTIONS can still be sitting in persisted state
+  // from before the cut — filter it out here so it can't get stuck showing
+  // in the summary text with no chip left to toggle it off.
+  const selectedMoods = rawSelectedMoods.filter((id) => SELECTABLE_MOOD_IDS.has(id))
 
   function handleSubmit() {
     setSource("mood")

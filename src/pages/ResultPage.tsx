@@ -13,7 +13,7 @@ import { useLibrary } from "@/hooks/useLibrary"
 import { mergeIntoLibrary, markAsReading } from "@/lib/db"
 import { cn } from "@/lib/utils"
 import type { Book } from "@/lib/types"
-import type { MoodId } from "@/lib/moods"
+import { SELECTABLE_MOOD_IDS, type MoodId } from "@/lib/moods"
 
 const BACK: Record<string, [string, string]> = {
   mood: ["/mood", "back.mood"],
@@ -54,7 +54,11 @@ export function ResultPage() {
   // this a stale Mood selection could silently leak into a Genre-sourced
   // search and result.
   const genreForSearch = lastSource === "genre" ? selectedGenre : null
-  const moodsForSearch = lastSource === "mood" ? selectedMoods : NO_MOODS
+  // Filtered against SELECTABLE_MOOD_IDS too — a mood dropped from
+  // MOOD_OPTIONS (acogedor/reconfortante) can still be sitting in persisted
+  // state from before the cut, and it can never be searched for again.
+  const moodsForSearch =
+    lastSource === "mood" ? selectedMoods.filter((m) => SELECTABLE_MOOD_IDS.has(m)) : NO_MOODS
 
   const excludeKeys = useMemo(() => new Set(books.map((b) => bookKey(b.title))), [books])
 

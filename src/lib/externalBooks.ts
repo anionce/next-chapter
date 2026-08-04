@@ -38,15 +38,18 @@ interface HardcoverTagRef {
  * dropped ones — only the picker (`MOOD_OPTIONS` in moods.ts) and this
  * search map are restricted to the 9 with real Hardcover mood-tag backing.
  */
+// acogedor/Cozy and reconfortante/Feel-Good deliberately excluded — only
+// 72 and 86 books on all of Hardcover pass the quality gate for those tags
+// (verified live), below the 150-book floor MOOD_OPTIONS (moods.ts) now
+// enforces for what's selectable at all. Kept out of this map too since
+// nothing ever calls buildQueries() with those MoodIds anymore.
 const MOOD_TO_HARDCOVER_TAG: Partial<Record<MoodId, HardcoverTagRef>> = {
-  acogedor: { tag: "Cozy", categoryId: CATEGORY_MOOD },
   atmosferico: { tag: "mysterious", categoryId: CATEGORY_MOOD },
   "que-hace-pensar": { tag: "reflective", categoryId: CATEGORY_MOOD },
   emotivo: { tag: "emotional", categoryId: CATEGORY_MOOD },
   suspense: { tag: "tense", categoryId: CATEGORY_MOOD },
   oscuro: { tag: "dark", categoryId: CATEGORY_MOOD },
   tragico: { tag: "sad", categoryId: CATEGORY_MOOD },
-  reconfortante: { tag: "Feel-Good", categoryId: CATEGORY_MOOD },
   inquietante: { tag: "scary", categoryId: CATEGORY_MOOD },
 }
 
@@ -92,16 +95,6 @@ const REVERSE_MOOD_TAG: Record<string, MoodId> = {
   scary: "inquietante",
 }
 
-/** Moods that can never genuinely co-occur — kept from the Open Library
- * era as a safety net. Hardcover's tags are real per-user votes rather than
- * unmoderated crowd text, so this fires far less often now, but a book can
- * still carry a couple of genuinely contradictory mood tags from a mixed
- * readership. */
-const MOOD_CONTRADICTIONS: [MoodId, MoodId[]][] = [
-  ["acogedor", ["inquietante", "oscuro", "tragico"]],
-  ["reconfortante", ["inquietante", "oscuro", "tragico"]],
-]
-
 /** A tag needs at least this many real user votes on *this* book before it
  * counts as a signal — filters out one-off/mistaken taggings without being
  * so strict that lesser-known (but still quality-gated) books lose all
@@ -116,16 +109,14 @@ function moodsFromHardcoverTags(cachedTags: HardcoverCachedTags): MoodId[] {
   }
   for (const t of cachedTags.Mood ?? []) bump(REVERSE_MOOD_TAG[t.tag.toLowerCase()], t.count)
 
-  const found = new Set(
-    Array.from(counts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([mood]) => mood)
+  return Array.from(
+    new Set(
+      Array.from(counts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([mood]) => mood)
+    )
   )
-  for (const [gentle, darkOpposites] of MOOD_CONTRADICTIONS) {
-    if (found.has(gentle) && darkOpposites.some((d) => found.has(d))) found.delete(gentle)
-  }
-  return Array.from(found)
 }
 
 interface HardcoverCachedTags {
