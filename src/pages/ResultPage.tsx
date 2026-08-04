@@ -2,12 +2,11 @@ import { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
-import { ScoreRing } from "@/components/result/ScoreRing"
 import { BookCover } from "@/components/result/BookCover"
 import { rankBooks } from "@/lib/score"
 import { searchExternalBooks, bookKey } from "@/lib/externalBooks"
 import { fetchSynopsis } from "@/lib/synopsis"
-import { genreLabel } from "@/lib/genres"
+import { genreLabel, NON_FICTION_GENRES } from "@/lib/genres"
 import { useT } from "@/lib/i18n"
 import { useReadingStore } from "@/store/useReadingStore"
 import { useLibrary } from "@/hooks/useLibrary"
@@ -33,7 +32,6 @@ export function ResultPage() {
   const books = useLibrary()
   const [addedKeys, setAddedKeys] = useState<Set<string>>(new Set())
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
-  const [selectedId, setSelectedId] = useState<string | null>(null)
   // Wishlist vs. discover is a deliberate choice, not something the
   // algorithm silently decides by blending both pools into one ranked list
   // — a near-miss external book should never quietly outrank (or get
@@ -48,7 +46,6 @@ export function ResultPage() {
 
   function switchSource(next: "wishlist" | "external") {
     setSource(next)
-    setSelectedId(null)
     setDismissedIds(new Set())
   }
 
@@ -81,7 +78,7 @@ export function ResultPage() {
           // a CSV import, and a stale cache must never re-surface something
           // you already own as if it were new.
           externalBooks.filter((b) => !excludeKeys.has(bookKey(b.title)) && !addedKeys.has(bookKey(b.title)))
-    return excludeNonFiction ? pool.filter((b) => b.genre !== "Non-fiction") : pool
+    return excludeNonFiction ? pool.filter((b) => !NON_FICTION_GENRES.has(b.genre)) : pool
   }, [source, books, externalBooks, excludeKeys, addedKeys, excludeNonFiction])
 
   const ranked = useMemo(() => {
@@ -89,8 +86,7 @@ export function ResultPage() {
     return all.filter((r) => !dismissedIds.has(r.book.id))
   }, [candidates, moodsForSearch, genreForSearch, dismissedIds])
 
-  const featured = (selectedId && ranked.find((r) => r.book.id === selectedId)) || ranked[0]
-  const others = ranked.filter((r) => r.book.id !== featured?.book.id).slice(0, 199)
+  const featured = ranked[0]
 
   const [backPath, backKey] = BACK[lastSource ?? ""] ?? ["/", "back.home"]
 
@@ -101,14 +97,9 @@ export function ResultPage() {
     staleTime: 24 * 60 * 60 * 1000,
   })
 
-  function selectBook(id: string) {
-    setSelectedId(id)
-  }
-
   function handleNotToday() {
     if (!featured) return
     setDismissedIds((prev) => new Set(prev).add(featured.book.id))
-    setSelectedId(null)
   }
 
   async function handleAdd(book: Book) {
@@ -223,14 +214,7 @@ export function ResultPage() {
           coverUrl={featured.book.coverUrl ?? synopsis?.coverUrl}
         />
         <div className="min-w-0 flex-1">
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <p className="text-[11px] font-semibold tracking-widest text-primary uppercase">{t("result.eyebrow")}</p>
-            {isExternal && (
-              <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold tracking-wide text-accent-foreground uppercase">
-                {t("result.new")}
-              </span>
-            )}
-          </div>
+          <p className="mb-2 text-[11px] font-semibold tracking-widest text-primary uppercase">{t("result.eyebrow")}</p>
           <h2 className="text-balance font-serif text-[22px] font-semibold">{featured.book.title}</h2>
           <p className="mb-2 text-sm text-muted-foreground">{featured.book.author}</p>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-muted-foreground">
@@ -259,23 +243,15 @@ export function ResultPage() {
       </div>
 
       <div className="mb-6 rounded-2xl border border-border bg-card p-6">
-        <div className="flex flex-wrap items-center gap-6">
-          <ScoreRing score={featured.score} />
-          <div className="min-w-55 flex-1">
-            <p className="mb-2.5 text-xs text-muted-foreground">{t("result.why")}</p>
-            <ul className="flex flex-col gap-2">
-              {featured.reasons.map((reason) => (
-                <li key={reason} className="flex items-start gap-2 text-[13.5px] leading-snug">
-                  <span className="mt-0.5 shrink-0 font-bold text-primary">✓</span>
-                  {reason}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-        <p className="mt-4 border-t border-border pt-3 text-[11.5px] leading-snug text-muted-foreground">
-          {t("result.scoreExplain")}
-        </p>
+        <p className="mb-2.5 text-xs text-muted-foreground">{t("result.why")}</p>
+        <ul className="flex flex-col gap-2">
+          {featured.reasons.map((reason) => (
+            <li key={reason} className="flex items-start gap-2 text-[13.5px] leading-snug">
+              <span className="mt-0.5 shrink-0 font-bold text-primary">✓</span>
+              {reason}
+            </li>
+          ))}
+        </ul>
       </div>
 
       <div className="mb-2 flex flex-wrap items-center gap-2.5">
@@ -303,40 +279,6 @@ export function ResultPage() {
           {t("result.notToday")}
         </Button>
       </div>
-
-      {others.length > 0 && (
-        <div className="mt-8">
-          <p className="mb-3 text-xs text-muted-foreground">{t("result.otherOptions")}</p>
-          <div className="divide-y divide-border">
-            {others.map(({ book, score }) => (
-              <button
-                key={book.id}
-                type="button"
-                onClick={() => selectBook(book.id)}
-                className="flex w-full items-center gap-3.5 py-3 text-left transition-colors hover:bg-card"
-              >
-                <div className="min-w-0 flex-1">
-                  <strong className="block truncate text-sm font-semibold">
-                    {book.title}
-                    {book.source === "external" && (
-                      <span className="ml-2 rounded-full bg-accent px-1.5 py-0.5 align-middle text-[9px] font-semibold tracking-wide text-accent-foreground uppercase">
-                        {t("result.newTag")}
-                      </span>
-                    )}
-                  </strong>
-                  <span className="text-xs text-muted-foreground">
-                    {book.author} · {book.pages != null ? `${book.pages} pages` : t("result.pagesUnknown")}
-                  </span>
-                </div>
-                <div className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-border">
-                  <div className={cn("h-full rounded-full bg-primary")} style={{ width: `${score}%` }} />
-                </div>
-                <span className="w-9 shrink-0 text-right text-sm font-semibold tabular-nums">{score}%</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

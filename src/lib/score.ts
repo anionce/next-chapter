@@ -81,13 +81,13 @@ export function rankBooks(books: Book[], ctx: ScoreContext, limit = 3): ScoredBo
 	const anySignal = scored.some(s => s.hasSignal);
 	const pool = asked && anySignal ? scored.filter(s => s.hasSignal) : scored;
 
-	// Nothing at all matched what was asked for — say so up front instead of
-	// quietly presenting an unrelated book (e.g. a Holocaust graphic novel
-	// for "acogedor") with the same confident framing as a real match.
+	// Nothing at all matched what was asked for — cap the score (used for
+	// sorting only, not displayed) so a real match always outranks a
+	// fallback pick if one exists elsewhere in the pool, without needing a
+	// user-facing disclaimer to say so.
 	if (asked && !anySignal) {
 		for (const s of pool) {
-			s.reasons.unshift("Nothing fully matched your mood today — this is the closest we found");
-			s.score = Math.min(s.score, 55);
+			s.score = Math.min(s.score, 55)
 		}
 	}
 

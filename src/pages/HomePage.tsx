@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom"
-import { ModeCard } from "@/components/home/ModeCard"
+import { ModeCard, CARD_COLORS } from "@/components/home/ModeCard"
 import { useLibrary } from "@/hooks/useLibrary"
 import { useT } from "@/lib/i18n"
 import { useReadingStore } from "@/store/useReadingStore"
@@ -27,23 +27,37 @@ export function HomePage() {
       </h1>
       <p className="mb-8 text-sm text-muted-foreground">{t("home.subtitle", unreadCount, readingCount)}</p>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {/* Four equally-weighted ways in — none is "the accurate one" or a
+          fallback; each just fits a different way of deciding. */}
+      <div className="grid grid-cols-2 gap-3">
         <ModeCard
           to="/mood"
-          featured
+          color={CARD_COLORS[0]}
           emoji="🍂"
           title={t("home.mood.title")}
           description={t("home.mood.desc")}
-          tag={t("home.mood.tag")}
         />
-        <ModeCard to="/genre" emoji="📚" title={t("home.genre.title")} description={t("home.genre.desc")} />
+        <ModeCard
+          to="/genre"
+          color={CARD_COLORS[1]}
+          emoji="📚"
+          title={t("home.genre.title")}
+          description={t("home.genre.desc")}
+        />
         <ModeCard
           onClick={handleSurpriseMe}
+          color={CARD_COLORS[2]}
           emoji="🎲"
           title={t("home.random.title")}
           description={t("home.random.desc")}
         />
-        <ModeCard to="/filters" emoji="🔎" title={t("home.filters.title")} description={t("home.filters.desc")} />
+        <ModeCard
+          to="/filters"
+          color={CARD_COLORS[3]}
+          emoji="🔎"
+          title={t("home.filters.title")}
+          description={t("home.filters.desc")}
+        />
       </div>
     </div>
   )

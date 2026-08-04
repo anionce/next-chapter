@@ -1,18 +1,28 @@
 import { Link } from "react-router-dom"
 import { cn } from "@/lib/utils"
 
+/** Four in-palette tints, all built from the existing blush/berry tokens
+ * (no new colors introduced) — enough to make each card visually distinct
+ * while every one gets the exact same size, layout, and weight. No card is
+ * "the featured one" anymore: every mode is a real, equally-good way in. */
+const CARD_COLORS = [
+  "border-accent-foreground/15 bg-accent",
+  "border-border bg-secondary",
+  "border-primary/25 bg-primary/15",
+  "border-primary/35 bg-primary/25",
+] as const
+
 interface ModeCardProps {
   to?: string
   onClick?: () => void
   emoji: string
   title: string
   description: string
-  featured?: boolean
-  tag?: string
+  color: (typeof CARD_COLORS)[number]
   comingSoonLabel?: string
 }
 
-export function ModeCard({ to, onClick, emoji, title, description, featured, tag, comingSoonLabel }: ModeCardProps) {
+export function ModeCard({ to, onClick, emoji, title, description, color, comingSoonLabel }: ModeCardProps) {
   const content = (
     <>
       <span className="text-2xl leading-none">{emoji}</span>
@@ -20,19 +30,12 @@ export function ModeCard({ to, onClick, emoji, title, description, featured, tag
         <strong className="block font-serif text-base font-semibold sm:text-lg">{title}</strong>
         <span className="mt-1 block text-[13px] leading-snug text-muted-foreground">{description}</span>
       </div>
-      {tag && (
-        <span className="ml-auto shrink-0 rounded-full bg-background px-2.5 py-1 text-[10px] font-semibold tracking-wide text-accent-foreground uppercase">
-          {tag}
-        </span>
-      )}
     </>
   )
 
   const className = cn(
-    "flex items-center gap-4 rounded-2xl border p-5 text-left transition-transform",
-    featured
-      ? "col-span-2 sm:col-span-3 border-accent-foreground/25 bg-accent"
-      : "col-span-1 flex-col items-start gap-3 border-border bg-card",
+    "col-span-1 flex flex-col items-start gap-3 rounded-2xl border p-5 text-left transition-transform",
+    color,
     (to || onClick) && "hover:-translate-y-0.5 hover:shadow-md"
   )
 
@@ -61,3 +64,5 @@ export function ModeCard({ to, onClick, emoji, title, description, featured, tag
     </div>
   )
 }
+
+export { CARD_COLORS }

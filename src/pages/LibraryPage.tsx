@@ -164,14 +164,6 @@ export function LibraryPage() {
         removeLabel={t("library.remove")}
       />
       <BookSection
-        title={t("library.readingTitle")}
-        emptyText={t("library.readingEmpty")}
-        books={reading}
-        lang={lang}
-        onRemove={removeFromLibrary}
-        removeLabel={t("library.remove")}
-      />
-      <BookSection
         title={t("library.readTitle")}
         emptyText={t("library.readEmpty")}
         books={read}

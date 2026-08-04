@@ -40,6 +40,18 @@ export type Genre = (typeof GENRES)[number]
  */
 export const SELECTABLE_GENRES = GENRES.filter((g) => g !== "Crime")
 
+/**
+ * Genres that are real-world nonfiction — used by the "No non-fiction"
+ * filter. Catching only the literal "Non-fiction" genre wasn't enough: a
+ * memoir (Seth Rogen's, caught live) classifies as "Biography" in this
+ * taxonomy, not "Non-fiction" — "Non-fiction" here is really just the
+ * catch-all bucket for nonfiction that isn't specifically a biography/
+ * memoir or a self-help book, not "all nonfiction." Excluding only that one
+ * literal string let every memoir and self-help book straight through a
+ * filter whose whole point was to keep them out.
+ */
+export const NON_FICTION_GENRES: ReadonlySet<string> = new Set<Genre>(["Biography", "Self-Help", "Non-fiction"])
+
 const GENRE_LABEL: Record<Lang, Record<Genre, string>> = {
   es: {
     Thriller: "Thriller",
