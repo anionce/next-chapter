@@ -8,14 +8,28 @@ import { MOOD_OPTIONS } from "@/lib/moods"
 export function HomePage() {
   const { t } = useT()
   const navigate = useNavigate()
-  const setMoods = useReadingStore((s) => s.setMoods)
+  const setSurpriseMood = useReadingStore((s) => s.setSurpriseMood)
+  const setSource = useReadingStore((s) => s.setSource)
   const books = useLibrary()
   const unreadCount = books.filter((b) => b.status === "unread").length
   const readingCount = books.filter((b) => b.status === "reading").length
+  const hasFavorites = books.some((b) => b.eloRating != null)
 
   function handleSurpriseMe() {
     const pick = MOOD_OPTIONS[Math.floor(Math.random() * MOOD_OPTIONS.length)]
-    setMoods([pick.id])
+    setSurpriseMood([pick.id])
+    navigate("/result")
+  }
+
+  // Nothing to base a "for you" pick on until you've compared at least a
+  // couple of books — sends you to start ranking instead of landing on an
+  // unpersonalized result that would just be the generic fallback pool.
+  function handleForYou() {
+    if (!hasFavorites) {
+      navigate("/compare")
+      return
+    }
+    setSource("favorites")
     navigate("/result")
   }
 
@@ -27,7 +41,7 @@ export function HomePage() {
       </h1>
       <p className="mb-8 text-sm text-muted-foreground">{t("home.subtitle", unreadCount, readingCount)}</p>
 
-      {/* Four equally-weighted ways in — none is "the accurate one" or a
+      {/* Equally-weighted ways in — none is "the accurate one" or a
           fallback; each just fits a different way of deciding. */}
       <div className="grid grid-cols-2 gap-3">
         <ModeCard
@@ -57,6 +71,13 @@ export function HomePage() {
           emoji="🔎"
           title={t("home.filters.title")}
           description={t("home.filters.desc")}
+        />
+        <ModeCard
+          onClick={handleForYou}
+          color={CARD_COLORS[4]}
+          emoji="⭐"
+          title={t("home.forYou.title")}
+          description={hasFavorites ? t("home.forYou.desc") : t("home.forYou.descEmpty")}
         />
       </div>
     </div>

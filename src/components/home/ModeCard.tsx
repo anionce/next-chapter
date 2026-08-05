@@ -1,15 +1,16 @@
 import { Link } from "react-router-dom"
 import { cn } from "@/lib/utils"
 
-/** Four in-palette tints, all built from the existing blush/berry tokens
- * (no new colors introduced) — enough to make each card visually distinct
- * while every one gets the exact same size, layout, and weight. No card is
- * "the featured one" anymore: every mode is a real, equally-good way in. */
+/** In-palette tints, all built from the existing blush/berry tokens (no new
+ * colors introduced) — enough to make each card visually distinct while
+ * every one gets the exact same size, layout, and weight. No card is "the
+ * featured one" — every mode is a real, equally-good way in. */
 const CARD_COLORS = [
   "border-accent-foreground/15 bg-accent",
   "border-border bg-secondary",
   "border-primary/25 bg-primary/15",
   "border-primary/35 bg-primary/25",
+  "border-accent-foreground/25 bg-secondary/70",
 ] as const
 
 interface ModeCardProps {
@@ -49,7 +50,7 @@ export function ModeCard({ to, onClick, emoji, title, description, color, coming
 
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={className}>
+      <button type="button" onClick={onClick} className={cn(className, "cursor-pointer")}>
         {content}
       </button>
     )

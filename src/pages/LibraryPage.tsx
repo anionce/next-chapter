@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form"
 import { Button } from "@/components/ui/button"
 import { useLibrary } from "@/hooks/useLibrary"
 import { parseLibraryCsv, type ImportResult } from "@/lib/csv"
-import { mergeIntoLibrary, replaceLibrary, removeFromLibrary } from "@/lib/db"
+import { mergeIntoLibrary, replaceLibrary, removeFromLibrary, MIN_BOOKS_TO_COMPARE } from "@/lib/db"
 import { GENRES, genreLabel } from "@/lib/genres"
 import { useT } from "@/lib/i18n"
 import type { Book, ReadStatus } from "@/lib/types"
@@ -171,6 +171,21 @@ export function LibraryPage() {
         onRemove={removeFromLibrary}
         removeLabel={t("library.remove")}
       />
+
+      <button
+        type="button"
+        onClick={() => navigate("/compare")}
+        disabled={read.length < MIN_BOOKS_TO_COMPARE}
+        className="mb-6 flex w-full cursor-pointer items-center justify-between rounded-2xl border border-dashed border-primary/40 bg-accent p-5 text-left transition-transform enabled:hover:-translate-y-0.5 enabled:hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <div>
+          <p className="mb-1 text-sm font-semibold text-accent-foreground">{t("library.rankTitle")}</p>
+          <p className="text-[13px] text-accent-foreground/80">
+            {read.length < MIN_BOOKS_TO_COMPARE ? t("library.rankNeedMore") : t("library.rankDesc")}
+          </p>
+        </div>
+        <span className="shrink-0 text-lg text-accent-foreground">→</span>
+      </button>
 
       <form
         onSubmit={handleSubmit(onAddBook)}

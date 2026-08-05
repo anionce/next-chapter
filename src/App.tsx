@@ -6,6 +6,7 @@ import { GenrePage } from "@/pages/GenrePage"
 import { FiltersPage } from "@/pages/FiltersPage"
 import { LibraryPage } from "@/pages/LibraryPage"
 import { ResultPage } from "@/pages/ResultPage"
+import { ComparePage } from "@/pages/ComparePage"
 
 export function App() {
   return (
@@ -16,6 +17,7 @@ export function App() {
         <Route path="genre" element={<GenrePage />} />
         <Route path="filters" element={<FiltersPage />} />
         <Route path="library" element={<LibraryPage />} />
+        <Route path="compare" element={<ComparePage />} />
         <Route path="result" element={<ResultPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

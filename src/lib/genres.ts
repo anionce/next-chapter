@@ -27,18 +27,21 @@ export const GENRES = [
 export type Genre = (typeof GENRES)[number]
 
 /**
- * Genres offered in the Genre/Filters pickers — everything except "Crime".
- * Kept in `GENRES`/`Genre` as a valid *classification outcome* (a real book
- * can still legitimately end up tagged Crime via `genreFromHardcoverTags`/
- * `pickGenreFromTags`), just not offered as a search input: on Hardcover,
- * "Crime" is almost always a secondary tag that loses the majority vote to
- * Thriller/Mystery/Classics on the same book — confirmed live, searching
- * Crime returned 51 candidates and only ~6 actually classified as Crime
- * themselves, the same "genre proxy answers a different question than the
- * one asked" problem that got Nature/Gothic/etc. dropped from the mood
- * picker. Same rule, applied to genre this time.
+ * Genres offered in the Genre/Filters pickers — everything except "Crime"
+ * and "Poetry". Kept in `GENRES`/`Genre` as valid *classification outcomes*
+ * (a real book can still legitimately end up tagged either way via
+ * `genreFromHardcoverTags`/`pickGenreFromTags`), just not offered as search
+ * inputs. Crime: on Hardcover, "Crime" is almost always a secondary tag
+ * that loses the majority vote to Thriller/Mystery/Classics on the same
+ * book — confirmed live, searching Crime returned 51 candidates and only
+ * ~6 actually classified as Crime themselves, the same "genre proxy
+ * answers a different question than the one asked" problem that got
+ * Nature/Gothic/etc. dropped from the mood picker. Poetry: removed on
+ * request, since combined with Advanced Filters' other axes (pace/length —
+ * concepts that barely apply to poetry) it reliably produces too few real
+ * results.
  */
-export const SELECTABLE_GENRES = GENRES.filter((g) => g !== "Crime")
+export const SELECTABLE_GENRES = GENRES.filter((g) => g !== "Crime" && g !== "Poetry")
 
 /**
  * Genres that are real-world nonfiction — used by the "No non-fiction"

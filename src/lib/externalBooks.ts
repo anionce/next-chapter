@@ -388,11 +388,75 @@ export async function searchExternalBooks(
 }
 
 /**
- * Direct author/genre/pace search for the Filters page's "search outside"
- * mode. Hardcover's `_ilike`/fuzzy operators are disabled on the public
- * API, so author matching goes through the Typesense-backed `search`
- * endpoint (query_type: "Author") to resolve fuzzy author names to ids
- * first, then filters the main `books` query by those ids.
+ * Retrieval for the "For you" flow (HomePage.tsx's "For you" card): unlike
+ * every other search here, this actively queries by your favorites
+ * directly, not just a single derived genre. Same-author is the strongest
+ * signal `bestFavoriteMatch()` (score.ts) already checks for when scoring,
+ * but a plain genre search only ever surfaces it by coincidence — this
+ * queries each of your top (up to 3) distinct favorite authors' catalogs
+ * directly (same underlying author search as an explicit Filters-page
+ * search) *and* the usual genre pool, in parallel, then interleaves them —
+ * author-catalog matches first (rarer and a stronger signal), the genre
+ * pool filling out the rest.
+ */
+export async function searchByFavorites(
+  favorites: Book[],
+  fallbackGenre: string | null,
+  excludeKeys: Set<string>,
+  limit = 200
+): Promise<Book[]> {
+  const authors: string[] = []
+  const seenAuthors = new Set<string>()
+  for (const b of favorites) {
+    const key = b.author.toLowerCase()
+    if (seenAuthors.has(key)) continue
+    seenAuthors.add(key)
+    authors.push(b.author)
+    if (authors.length >= 3) break
+  }
+
+  const [authorResults, genrePool] = await Promise.all([
+    Promise.all(authors.map((author) => searchExternalByFilters({ author, excludeKeys, limit: 30 }))),
+    searchExternalBooks(fallbackGenre, [], excludeKeys, limit),
+  ])
+
+  const seen = new Set(excludeKeys)
+  const merged: Book[] = []
+  for (const list of authorResults) {
+    for (const book of list) {
+      if (merged.length >= limit) break
+      const key = bookKey(book.title)
+      if (seen.has(key)) continue
+      seen.add(key)
+      merged.push(book)
+    }
+  }
+  for (const book of genrePool) {
+    if (merged.length >= limit) break
+    const key = bookKey(book.title)
+    if (seen.has(key)) continue
+    seen.add(key)
+    merged.push(book)
+  }
+
+  return merged
+}
+
+/**
+ * Direct author/genre search for the Filters page's "search outside" mode.
+ * Hardcover's `_ilike`/fuzzy operators are disabled on the public API, so
+ * author matching goes through the Typesense-backed `search` endpoint
+ * (query_type: "Author") to resolve fuzzy author names to ids first, then
+ * filters the main `books` query by those ids.
+ *
+ * A `pace` filter (fast-paced/slow-paced, Mood category id 4) used to live
+ * here too — removed on request after checking real coverage: only 2,572
+ * books on all of Hardcover have ever been tagged "fast-paced" (481 for
+ * slow-paced), vs. 23,026 for a common mood like "dark" — combined with any
+ * other filter it reliably wiped out 98%+ of an otherwise healthy pool
+ * (confirmed live: "<300 pages, published 2020+" alone = 1,700 books;
+ * adding "fast-paced" = 24). Same structural problem as inquietante/scary
+ * getting cut from the mood picker, just discovered on this axis instead.
  *
  * Diversification (author cap + shuffle, same as `searchExternalBooks`)
  * only applies when there's no author filter — if you searched for a
@@ -402,7 +466,10 @@ export async function searchExternalBooks(
 export async function searchExternalByFilters(params: {
   author?: string
   genre?: string | null
-  pace?: "fast" | "slow" | null
+  afterYear?: number | null
+  beforeYear?: number | null
+  minPages?: number | null
+  maxPages?: number | null
   excludeKeys?: Set<string>
   limit?: number
 }): Promise<Book[]> {
@@ -432,13 +499,32 @@ export async function searchExternalByFilters(params: {
     variables.genreTag = tag
   }
 
-  // "fast-paced"/"slow-paced" live in the Mood category (categoryId 4) on
-  // Hardcover, not a separate "pace" category despite one existing (id 37,
-  // effectively unused) — confirmed via real per-tag counts.
-  if (params.pace) {
-    conditions.push("{taggings: {tag: {tag: {_eq: $paceTag}, tag_category_id: {_eq: 4}}}}")
-    variableDecls += ", $paceTag: String!"
-    variables.paceTag = params.pace === "fast" ? "fast-paced" : "slow-paced"
+  // Year/pages need to narrow the query itself, not just post-filter its
+  // results — without this, a query with no author/genre set fetches the
+  // top ~600 books by *all-time* editions_count (ancient, universally
+  // reprinted classics dominate that ranking), and a client-side "published
+  // 2020+" filter on that pool can easily find nothing at all, even though
+  // thousands of real 2020+ books exist on Hardcover — the fetch itself was
+  // just never scoped to look for them.
+  if (params.afterYear) {
+    conditions.push("{release_year: {_gte: $afterYear}}")
+    variableDecls += ", $afterYear: Int!"
+    variables.afterYear = params.afterYear
+  }
+  if (params.beforeYear) {
+    conditions.push("{release_year: {_lte: $beforeYear}}")
+    variableDecls += ", $beforeYear: Int!"
+    variables.beforeYear = params.beforeYear
+  }
+  if (params.minPages) {
+    conditions.push("{pages: {_gte: $minPages}}")
+    variableDecls += ", $minPages: Int!"
+    variables.minPages = params.minPages
+  }
+  if (params.maxPages) {
+    conditions.push("{pages: {_lte: $maxPages}}")
+    variableDecls += ", $maxPages: Int!"
+    variables.maxPages = params.maxPages
   }
 
   const where = conditions.length > 0 ? `{_and: [${conditions.join(", ")}]}` : "{}"

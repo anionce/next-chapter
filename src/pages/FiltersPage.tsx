@@ -13,12 +13,9 @@ import { cn } from "@/lib/utils"
 const DEFAULTS: AdvancedFilters = {
   author: "",
   genre: null,
-  minPages: null,
-  maxPages: null,
   afterYear: null,
   beforeYear: null,
   source: "wishlist",
-  pace: null,
   length: null,
 }
 
@@ -45,34 +42,51 @@ export function FiltersPage() {
 
   const excludeKeys = useMemo(() => new Set(books.map((b) => bookKey(b.title))), [books])
 
+  // A "precision search" tool returning your entire wishlist/every quality
+  // book on Hardcover just because nothing's been typed yet reads as a bug,
+  // not a feature — it implies a match against a query that was never
+  // actually made. Require at least one real filter before fetching or
+  // showing anything.
+  const hasAnyFilter =
+    !!filters.author || !!filters.genre || !!filters.afterYear || !!filters.beforeYear || !!filters.length
+
+  // Length is a preset, not a raw min/max — translated to the same bounds
+  // the client-side post-filter below uses (`< SHORT_MAX_PAGES`, `>=
+  // LONG_MIN_PAGES`) so the server-side query and the post-filter agree.
+  const minPages = filters.length === "long" ? LONG_MIN_PAGES : null
+  const maxPages = filters.length === "short" ? SHORT_MAX_PAGES - 1 : null
+
   const { data: externalResults = [], isFetching: externalFetching } = useQuery({
-    queryKey: ["filters-external", filters.author, filters.genre, filters.pace],
+    queryKey: ["filters-external", filters.author, filters.genre, filters.afterYear, filters.beforeYear, minPages, maxPages],
     queryFn: () =>
-      searchExternalByFilters({ author: filters.author, genre: filters.genre, pace: filters.pace, excludeKeys, limit: 200 }),
-    enabled: filters.source === "external",
+      searchExternalByFilters({
+        author: filters.author,
+        genre: filters.genre,
+        afterYear: filters.afterYear,
+        beforeYear: filters.beforeYear,
+        minPages,
+        maxPages,
+        excludeKeys,
+        limit: 200,
+      }),
+    enabled: filters.source === "external" && hasAnyFilter,
     staleTime: 5 * 60 * 1000,
   })
 
   const results = useMemo(() => {
+    if (!hasAnyFilter) return []
     const pool = filters.source === "wishlist" ? books.filter((b) => b.status === "unread") : externalResults
     const filtered = pool.filter((b) => {
       if (filters.author && !b.author.toLowerCase().includes(filters.author.toLowerCase())) return false
       if (filters.genre && b.genre !== filters.genre) return false
-      if (filters.minPages && (b.pages == null || b.pages < Number(filters.minPages))) return false
-      if (filters.maxPages && (b.pages == null || b.pages > Number(filters.maxPages))) return false
       if (filters.afterYear && (b.year == null || b.year < Number(filters.afterYear))) return false
       if (filters.beforeYear && (b.year == null || b.year > Number(filters.beforeYear))) return false
       if (filters.length === "short" && (b.pages == null || b.pages >= SHORT_MAX_PAGES)) return false
       if (filters.length === "long" && (b.pages == null || b.pages < LONG_MIN_PAGES)) return false
-      // Pace is only ever real for external results — the Hardcover query
-      // above already filtered to it, and no local book carries this data,
-      // so wishlist-mode pace filtering honestly returns nothing rather
-      // than guessing.
-      if (filters.pace && filters.source === "wishlist") return false
       return true
     })
     return rankBooks(filtered, { moods: [], genre: filters.genre }, filtered.length)
-  }, [books, externalResults, filters])
+  }, [books, externalResults, filters, hasAnyFilter])
 
   return (
     <div>
@@ -125,38 +139,11 @@ export function FiltersPage() {
         </label>
 
         <div className="flex flex-col gap-1.5 text-[13px] font-medium">
-          {t("filters.pages")}
-          <div className="flex items-center gap-2">
-            <input {...register("minPages")} type="number" min={0} placeholder={t("filters.pagesMin")} className={fieldClass()} />
-            <span className="text-muted-foreground">–</span>
-            <input {...register("maxPages")} type="number" min={0} placeholder={t("filters.pagesMax")} className={fieldClass()} />
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1.5 text-[13px] font-medium">
           {t("filters.years")}
           <div className="flex items-center gap-2">
             <input {...register("afterYear")} type="number" placeholder={t("filters.yearFrom")} className={fieldClass()} />
             <span className="text-muted-foreground">–</span>
             <input {...register("beforeYear")} type="number" placeholder={t("filters.yearTo")} className={fieldClass()} />
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1.5 text-[13px] font-medium">
-          {t("filters.pace")}
-          <div className="flex flex-wrap gap-2">
-            {(["", "fast", "slow"] as const).map((value) => (
-              <label
-                key={value || "any"}
-                className={cn(
-                  "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13.5px] font-medium transition-colors has-checked:border-primary has-checked:bg-primary has-checked:text-primary-foreground",
-                  "border-border bg-background text-foreground"
-                )}
-              >
-                <input {...register("pace")} type="radio" value={value} className="sr-only" />
-                {value === "" ? t("filters.paceAny") : value === "fast" ? t("filters.paceFast") : t("filters.paceSlow")}
-              </label>
-            ))}
           </div>
         </div>
 
@@ -179,29 +166,30 @@ export function FiltersPage() {
         </div>
       </form>
 
-      {filters.source === "external" && externalFetching ? (
-        <p className="text-xs text-muted-foreground">{t("filters.searching")}</p>
-      ) : (
-        <p className="mb-3 text-xs text-muted-foreground">{t("filters.results", results.length)}</p>
-      )}
-      {!(filters.source === "external" && externalFetching) && results.length === 0 && (
+      {!hasAnyFilter ? (
         <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          {t("filters.noResults")}
+          {t("filters.setAFilter")}
         </p>
+      ) : (
+        <>
+          {filters.source === "external" && externalFetching ? (
+            <p className="text-xs text-muted-foreground">{t("filters.searching")}</p>
+          ) : (
+            <p className="mb-3 text-xs text-muted-foreground">{t("filters.results", results.length)}</p>
+          )}
+          {!(filters.source === "external" && externalFetching) && results.length === 0 && (
+            <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              {t("filters.noResults")}
+            </p>
+          )}
+        </>
       )}
       {results.length > 0 && (
         <div className="divide-y divide-border rounded-2xl border border-border bg-card px-5">
           {results.map(({ book, score }) => (
             <div key={book.id} className="flex items-center gap-3.5 py-3.5">
               <div className="min-w-0 flex-1">
-                <strong className="block truncate text-sm font-semibold">
-                  {book.title}
-                  {book.source === "external" && (
-                    <span className="ml-2 rounded-full bg-accent px-1.5 py-0.5 align-middle text-[9px] font-semibold tracking-wide text-accent-foreground uppercase">
-                      {t("result.newTag")}
-                    </span>
-                  )}
-                </strong>
+                <strong className="block truncate text-sm font-semibold">{book.title}</strong>
                 <span className="text-xs text-muted-foreground">
                   {book.author} · {book.pages != null ? `${book.pages} pages` : t("result.pagesUnknown")}
                   {book.year != null && ` · ${book.year}`} · {genreLabel(book.genre, lang)}

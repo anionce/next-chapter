@@ -39,7 +39,6 @@ export function MoodPage() {
             key={option.id}
             option={option}
             active={selectedMoods.includes(option.id)}
-            disabled={!selectedMoods.includes(option.id) && selectedMoods.length >= 3}
             onToggle={() => toggleMood(option.id)}
           />
         ))}

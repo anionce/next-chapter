@@ -25,6 +25,14 @@ export interface Book {
   status: ReadStatus
   rating?: number
   source: BookSource
+  /** Elo rating from head-to-head "which did you prefer?" comparisons
+   * (src/pages/ComparePage.tsx) — undefined until the book has been in at
+   * least one matchup. A far stronger taste signal than `rating` (a 1-5
+   * star score is absolute and noisy; a pairwise pick is a much easier,
+   * more honest judgment), and what drives the "resembles your favorites"
+   * recommendation bonus in score.ts. */
+  eloRating?: number
+  eloComparisons?: number
 }
 
 export interface ScoredBook {
@@ -36,19 +44,15 @@ export interface ScoredBook {
 export interface AdvancedFilters {
   author: string
   genre: string | null
-  minPages: number | null
-  maxPages: number | null
   afterYear: number | null
   beforeYear: number | null
   /** "reading"/"read" books never belong in a search for what to read next
    * — the only real choice is your own untouched wishlist, or something
    * genuinely new. */
   source: "wishlist" | "external"
-  /** Real signal only in "external" mode, via Hardcover's own "fast-paced"/
-   * "slow-paced" tags (searched at query time, not post-filtered — no local
-   * book ever carries this data, so wishlist-mode filtering by pace always
-   * returns nothing, honestly, rather than guessing). */
-  pace: "fast" | "slow" | null
-  /** Page-count presets — real data either way, works for both sources. */
+  /** Page-count presets — real data either way, works for both sources. Replaced
+   * a free-form min/max Pages range on request: two arbitrary number inputs
+   * combined with any other filter narrowed results too aggressively for no
+   * real benefit over the coarser short/long presets. */
   length: "short" | "long" | null
 }

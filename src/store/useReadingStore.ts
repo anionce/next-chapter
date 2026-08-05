@@ -2,9 +2,7 @@ import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import { SELECTABLE_MOOD_IDS, type MoodId } from "@/lib/moods"
 
-const MAX_MOODS = 3
-
-export type ReadingSource = "mood" | "genre"
+export type ReadingSource = "mood" | "genre" | "surprise" | "favorites"
 
 interface ReadingState {
   selectedMoods: MoodId[]
@@ -17,9 +15,12 @@ interface ReadingState {
   setGenre: (genre: string) => void
   setSource: (source: ReadingSource) => void
   toggleExcludeNonFiction: () => void
-  /** Sets selectedMoods directly and marks the source as "mood" in one step
-   * — used by "Surprise me" to jump straight to a result without the picker. */
-  setMoods: (moods: MoodId[]) => void
+  /** Sets selectedMoods directly and marks the source as "surprise" in one
+   * step — used by "Surprise me" to jump straight to a result without the
+   * picker. Distinct from "mood" so the result page can tell a consciously
+   * chosen mood apart from a randomly assigned one (and hide the "why this"
+   * reasons panel, since the user never actually asked for that mood). */
+  setSurpriseMood: (moods: MoodId[]) => void
 }
 
 export const useReadingStore = create<ReadingState>()(
@@ -29,17 +30,20 @@ export const useReadingStore = create<ReadingState>()(
       selectedGenre: null,
       lastSource: null,
       excludeNonFiction: false,
+      // Only one mood at a time — combining moods narrows the real candidate
+      // pool too far (each extra mood is another AND condition against an
+      // already-thin per-book signal). Clicking a different chip replaces
+      // the selection outright rather than blocking until the old one is
+      // manually deselected first.
       toggleMood: (id) =>
         set((state) => {
           const has = state.selectedMoods.includes(id)
-          if (has) return { selectedMoods: state.selectedMoods.filter((m) => m !== id) }
-          if (state.selectedMoods.length >= MAX_MOODS) return state
-          return { selectedMoods: [...state.selectedMoods, id] }
+          return { selectedMoods: has ? [] : [id] }
         }),
       setGenre: (genre) => set({ selectedGenre: genre }),
       setSource: (source) => set({ lastSource: source }),
       toggleExcludeNonFiction: () => set((state) => ({ excludeNonFiction: !state.excludeNonFiction })),
-      setMoods: (moods) => set({ selectedMoods: moods, lastSource: "mood" }),
+      setSurpriseMood: (moods) => set({ selectedMoods: moods, lastSource: "surprise" }),
     }),
     {
       name: "next-chapter-reading-state",
