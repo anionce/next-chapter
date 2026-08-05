@@ -47,10 +47,12 @@ export async function mergeIntoLibrary(books: Book[]) {
   await db.books.bulkPut(books)
 }
 
-/** "Lee este." — the decision loop this app exists for: move a book from
- * "unread" to "reading" the moment the user commits to it. */
-export async function markAsReading(id: string) {
-  await db.books.update(id, { status: "reading" })
+/** "Read this." — the decision loop this app exists for: move a book from
+ * "unread" straight to "read" the moment the user commits to it. No
+ * intermediate "reading" state — that used to sit here, and got cut since
+ * the only thing it changed was where a book sat in the library list. */
+export async function markAsRead(id: string) {
+  await db.books.update(id, { status: "read" })
 }
 
 export async function removeFromLibrary(id: string) {

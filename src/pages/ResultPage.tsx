@@ -10,7 +10,7 @@ import { genreLabel, NON_FICTION_GENRES } from "@/lib/genres"
 import { useT } from "@/lib/i18n"
 import { useReadingStore } from "@/store/useReadingStore"
 import { useLibrary } from "@/hooks/useLibrary"
-import { mergeIntoLibrary, markAsReading } from "@/lib/db"
+import { mergeIntoLibrary, markAsRead } from "@/lib/db"
 import { cn } from "@/lib/utils"
 import type { Book } from "@/lib/types"
 import type { MoodId } from "@/lib/moods"
@@ -172,7 +172,7 @@ export function ResultPage() {
   }
 
   async function handleReadThis(book: Book) {
-    await markAsReading(book.id)
+    await markAsRead(book.id)
     navigate("/")
   }
 

@@ -92,8 +92,9 @@ function parseStorygraphMoods(raw: string | undefined): MoodId[] {
 }
 
 function toStatus(shelf: string): ReadStatus {
-  if (shelf === "to-read") return "unread"
-  if (shelf === "currently-reading" || shelf === "reading") return "reading"
+  // No "reading" state — a book you're mid-way through hasn't been read
+  // yet, so it belongs with the rest of your wishlist, not a third bucket.
+  if (shelf === "to-read" || shelf === "currently-reading" || shelf === "reading") return "unread"
   return "read"
 }
 

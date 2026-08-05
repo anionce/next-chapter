@@ -105,10 +105,7 @@ const en: Dict = {
 
   "home.eyebrow": "Today",
   "home.title": "What do you feel like reading today?",
-  "home.subtitle": ((unread: number, reading: number) =>
-    `${unread} ${unread === 1 ? "book" : "books"} waiting for their turn${
-      reading > 0 ? ` · ${reading} in progress right now` : ""
-    }.`) as Value,
+  "home.subtitle": ((unread: number) => `${unread} ${unread === 1 ? "book" : "books"} waiting for their turn.`) as Value,
   "home.mood.title": "Choose by mood",
   "home.mood.desc": "Pick one feeling — atmospheric, dark, tragic…",
   "home.genre.title": "By genre",
@@ -183,8 +180,8 @@ const en: Dict = {
 
   "library.eyebrow": "Your library",
   "library.title": "Connect your library.",
-  "library.summary": ((total: number, unread: number, reading: number, read: number) =>
-    `${total} books right now — ${unread} to read, ${reading} in progress, ${read} already read.`) as Value,
+  "library.summary": ((total: number, unread: number, read: number) =>
+    `${total} books right now — ${unread} to read, ${read} already read.`) as Value,
   "library.importTitle": "Import CSV",
   "library.importDesc":
     "Export your library from Goodreads (Account settings → Account & Notifications → Download your Goodreads data) or StoryGraph (Manage account → Manage your data → Export StoryGraph library) and upload it here. We detect the format automatically.",
@@ -192,8 +189,8 @@ const en: Dict = {
   "library.badFile": "We couldn't read that file. Make sure it's a CSV.",
   "library.noRows": "We didn't recognize any rows. Is this a Goodreads or StoryGraph export?",
   "library.detected": ((n: number, source: string) => `${n} books detected · ${source} format`) as Value,
-  "library.pendingSummary": ((unread: number, reading: number, read: number) =>
-    `${unread} to read, ${reading} in progress, ${read} already read — only the ones to read (or in progress) will enter your recommendations`) as Value,
+  "library.pendingSummary": ((unread: number, read: number) =>
+    `${unread} to read, ${read} already read — only the ones to read will enter your recommendations`) as Value,
   "library.skippedRows": ((n: number) => `. ${n} rows without a title or author, skipped`) as Value,
   "library.replace": "Replace my library",
   "library.merge": "Add to what I have",
@@ -207,13 +204,13 @@ const en: Dict = {
   "library.rankNeedMore": "Mark at least 4 books as read to start.",
   "library.remove": "Remove",
   "library.addTitle": "Add a book",
-  "library.addDesc": "Add a single book directly — no CSV needed.",
-  "library.addBookTitlePlaceholder": "Title",
-  "library.addAuthorPlaceholder": "Author",
-  "library.addPagesPlaceholder": "Pages (optional)",
+  "library.addDesc": "Search for a real book instead of typing it in by hand — picks up the title, author, pages, and genre for you.",
+  "library.addSearchPlaceholder": "Search by title or author…",
+  "library.addSearching": "Searching…",
+  "library.addNoResults": "No matches. Try a different spelling.",
+  "library.addChange": "Change",
   "library.addSubmit": "Add",
   "library.statusUnread": "Wishlist",
-  "library.statusReading": "Reading now",
   "library.statusRead": "Read",
 }
 

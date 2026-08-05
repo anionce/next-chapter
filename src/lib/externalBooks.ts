@@ -191,11 +191,15 @@ function pickIsbn(editions: HardcoverEdition[] | undefined): string | undefined 
   return undefined
 }
 
-function mapHardcoverBook(doc: HardcoverBook, fallbackGenre: string): Book | null {
+function mapHardcoverBook(doc: HardcoverBook, fallbackGenre: string, skipQualityGate = false): Book | null {
   const title = doc.title?.trim()
   const author = doc.contributions?.[0]?.author?.name?.trim()
   if (!title || !author) return null
-  if (!passesQualityBar(doc)) return null
+  // The editions_count quality gate exists to keep *discovery* results
+  // recognizable — it has no place when someone is manually confirming a
+  // specific book they already know they want (searchBooksByQuery below),
+  // where an obscure/niche real book is a completely legitimate add.
+  if (!skipQualityGate && !passesQualityBar(doc)) return null
 
   // Moods come *only* from the book's own weighted `cached_tags` — never
   // from "this book matched the search filter, so credit it anyway". Tried
@@ -229,6 +233,51 @@ function mapHardcoverBook(doc: HardcoverBook, fallbackGenre: string): Book | nul
     status: "unread" as ReadStatus,
     source: "external",
   }
+}
+
+/**
+ * Live-typing search for the Library page's "Add a book" form — the user
+ * picks a real Hardcover record instead of hand-typing title/author/genre/
+ * pages, which both saves the retyping and rules out the misspellings and
+ * miscategorizations manual entry invites. Same `search` endpoint
+ * `findBestCandidate` (synopsis.ts) uses to resolve one best match, but
+ * this returns several real candidates for a human to pick from directly,
+ * and deliberately skips the editions_count quality gate — an obscure book
+ * someone actually owns is exactly what this flow exists for, unlike
+ * `searchExternalBooks`'s discovery results, which are all Hardcover ever
+ * offers unprompted.
+ */
+export async function searchBooksByQuery(query: string, limit = 8): Promise<Book[]> {
+  const trimmed = query.trim()
+  if (trimmed.length < 2) return []
+
+  const searchData = await hardcoverQuery<{ search: { ids: number[] } }>(
+    `query SearchBook($q: String!) { search(query: $q, query_type: "Book") { ids } }`,
+    { q: trimmed }
+  )
+  const ids = searchData?.search.ids.slice(0, limit) ?? []
+  if (ids.length === 0) return []
+
+  const data = await hardcoverQuery<{ books: HardcoverBook[] }>(
+    `query GetBooksByIds($ids: [Int!]) {
+      books(where: {id: {_in: $ids}}) {
+        ${BOOK_FIELDS}
+      }
+    }`,
+    { ids }
+  )
+  if (!data) return []
+
+  const books: Book[] = []
+  for (const doc of data.books) {
+    const book = mapHardcoverBook(doc, "Unclassified", true)
+    if (book) books.push(book)
+  }
+  // Hardcover's `search` returns ids already ranked by relevance — the
+  // `books(where: {id: {_in: ...}})` fetch above doesn't preserve that
+  // order, so restore it rather than showing an arbitrarily-ordered list.
+  const order = new Map(ids.map((id, i) => [`external-hc-${id}`, i]))
+  return books.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
 }
 
 /**

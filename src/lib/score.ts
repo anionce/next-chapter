@@ -95,11 +95,10 @@ function scoreBook(book: Book, ctx: ScoreContext): Scored {
 }
 
 /**
- * Only strictly-unread books are ever candidates — "reading" and "read"
- * books exist purely to supply the favorites/taste signal, never to be
- * recommended back to you. `books` may mix your own library with
- * externally-discovered titles (see src/lib/externalBooks.ts); both are
- * scored identically.
+ * Only strictly-unread books are ever candidates — "read" books exist
+ * purely to supply the favorites/taste signal, never to be recommended
+ * back to you. `books` may mix your own library with externally-discovered
+ * titles (see src/lib/externalBooks.ts); both are scored identically.
  *
  * When the caller actually asked for something specific (a mood or a
  * genre), a book with none of those signals — score built entirely from the
