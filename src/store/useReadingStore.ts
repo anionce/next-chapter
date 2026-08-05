@@ -1,6 +1,6 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-import type { MoodId } from "@/lib/moods"
+import { SELECTABLE_MOOD_IDS, type MoodId } from "@/lib/moods"
 
 const MAX_MOODS = 3
 
@@ -41,6 +41,16 @@ export const useReadingStore = create<ReadingState>()(
       toggleExcludeNonFiction: () => set((state) => ({ excludeNonFiction: !state.excludeNonFiction })),
       setMoods: (moods) => set({ selectedMoods: moods, lastSource: "mood" }),
     }),
-    { name: "next-chapter-reading-state" }
+    {
+      name: "next-chapter-reading-state",
+      // A mood dropped from MOOD_OPTIONS (moods.ts) can still be sitting in
+      // an existing user's persisted selectedMoods from before the cut —
+      // sanitized once here, right after rehydration, so every consumer
+      // (MAX_MOODS counting, search, display) always sees clean data instead
+      // of each call-site needing its own filter.
+      onRehydrateStorage: () => (state) => {
+        if (state) state.selectedMoods = state.selectedMoods.filter((m) => SELECTABLE_MOOD_IDS.has(m))
+      },
+    }
   )
 )

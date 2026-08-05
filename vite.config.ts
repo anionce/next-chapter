@@ -2,6 +2,7 @@ import path from 'node:path'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { forwardToHardcover } from './src/lib/hardcoverProxy.ts'
 
 // Mirrors netlify/functions/hardcover.ts so `npm run dev` behaves the same
 // way production does: the browser only ever calls this same-origin path,
@@ -24,19 +25,10 @@ function hardcoverDevProxy(apiKey: string | undefined): Plugin {
         }
         const chunks: Buffer[] = []
         for await (const chunk of req) chunks.push(chunk as Buffer)
-        try {
-          const upstream = await fetch('https://api.hardcover.app/v1/graphql', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-            body: Buffer.concat(chunks).toString('utf-8'),
-          })
-          res.statusCode = upstream.status
-          res.setHeader('Content-Type', 'application/json')
-          res.end(await upstream.text())
-        } catch {
-          res.statusCode = 502
-          res.end(JSON.stringify({ error: 'Upstream request failed' }))
-        }
+        const { status, bodyText } = await forwardToHardcover(apiKey, Buffer.concat(chunks).toString('utf-8'))
+        res.statusCode = status
+        res.setHeader('Content-Type', 'application/json')
+        res.end(bodyText)
       })
     },
   }

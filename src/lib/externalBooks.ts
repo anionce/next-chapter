@@ -1,4 +1,4 @@
-import type { MoodId } from "@/lib/moods"
+import { SELECTABLE_MOOD_IDS, type MoodId } from "@/lib/moods"
 import type { Book, ReadStatus } from "@/lib/types"
 import { genreFromHardcoverTags, type Genre, type HardcoverTagCount } from "@/lib/genres"
 import { hardcoverQuery } from "@/lib/hardcoverClient"
@@ -36,13 +36,19 @@ interface HardcoverTagRef {
  * kind exists for it) were already excluded for the same reason. The
  * `MoodId` type still has all 18 values — CSV imports may still carry the
  * dropped ones — only the picker (`MOOD_OPTIONS` in moods.ts) and this
- * search map are restricted to the 9 with real Hardcover mood-tag backing.
+ * search map are restricted to the 6 with real Hardcover mood-tag backing
+ * *and* a large enough real (post-scoring) result count to be worth
+ * offering. Three more were cut: acogedor/Cozy and reconfortante/Feel-Good
+ * only have 72 and 86 books on all of Hardcover that pass the quality gate
+ * at all (verified live) — a hard ceiling on Hardcover's own tagging
+ * volume. inquietante/scary passes that raw count (173) but almost never
+ * survives into a book's own top-3 *weighted* moods — it's a low-volume tag
+ * (194 uses site-wide) that "dark"/"tense" (tens of thousands of uses)
+ * completely outweigh on the same books, since a scary book is usually also
+ * dark/tense and those get tagged far more often (0 real matches out of 113
+ * author-capped candidates, confirmed live). All three kept out of this map
+ * since nothing ever calls buildQueries() with those MoodIds anymore.
  */
-// acogedor/Cozy and reconfortante/Feel-Good deliberately excluded — only
-// 72 and 86 books on all of Hardcover pass the quality gate for those tags
-// (verified live), below the 150-book floor MOOD_OPTIONS (moods.ts) now
-// enforces for what's selectable at all. Kept out of this map too since
-// nothing ever calls buildQueries() with those MoodIds anymore.
 const MOOD_TO_HARDCOVER_TAG: Partial<Record<MoodId, HardcoverTagRef>> = {
   atmosferico: { tag: "mysterious", categoryId: CATEGORY_MOOD },
   "que-hace-pensar": { tag: "reflective", categoryId: CATEGORY_MOOD },
@@ -50,7 +56,6 @@ const MOOD_TO_HARDCOVER_TAG: Partial<Record<MoodId, HardcoverTagRef>> = {
   suspense: { tag: "tense", categoryId: CATEGORY_MOOD },
   oscuro: { tag: "dark", categoryId: CATEGORY_MOOD },
   tragico: { tag: "sad", categoryId: CATEGORY_MOOD },
-  inquietante: { tag: "scary", categoryId: CATEGORY_MOOD },
 }
 
 const GENRE_TO_HARDCOVER_TAG: Record<Genre, string> = {
@@ -109,14 +114,16 @@ function moodsFromHardcoverTags(cachedTags: HardcoverCachedTags): MoodId[] {
   }
   for (const t of cachedTags.Mood ?? []) bump(REVERSE_MOOD_TAG[t.tag.toLowerCase()], t.count)
 
-  return Array.from(
-    new Set(
-      Array.from(counts.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
-        .map(([mood]) => mood)
-    )
-  )
+  // REVERSE_MOOD_TAG still maps a couple of tags (cozy, feel-good/hopeful/
+  // heartwarming/lighthearted) to moods that were cut from MOOD_OPTIONS —
+  // filtered out here so a book's own .moods can never carry an id that's
+  // no longer selectable/searchable, matching SELECTABLE_MOOD_IDS everywhere
+  // else. counts' keys (a Map) are already unique, so no dedup step needed.
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([mood]) => mood)
+    .filter((mood) => SELECTABLE_MOOD_IDS.has(mood))
 }
 
 interface HardcoverCachedTags {

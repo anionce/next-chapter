@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
@@ -13,7 +13,7 @@ import { useLibrary } from "@/hooks/useLibrary"
 import { mergeIntoLibrary, markAsReading } from "@/lib/db"
 import { cn } from "@/lib/utils"
 import type { Book } from "@/lib/types"
-import { SELECTABLE_MOOD_IDS, type MoodId } from "@/lib/moods"
+import type { MoodId } from "@/lib/moods"
 
 const BACK: Record<string, [string, string]> = {
   mood: ["/mood", "back.mood"],
@@ -28,6 +28,8 @@ export function ResultPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { t, lang } = useT()
+  // selectedMoods is guaranteed to only ever contain MOOD_OPTIONS ids — the
+  // store itself sanitizes on rehydration (see useReadingStore.ts).
   const { selectedMoods, selectedGenre, lastSource, excludeNonFiction, toggleExcludeNonFiction } = useReadingStore()
   const books = useLibrary()
   const [addedKeys, setAddedKeys] = useState<Set<string>>(new Set())
@@ -54,31 +56,31 @@ export function ResultPage() {
   // this a stale Mood selection could silently leak into a Genre-sourced
   // search and result.
   const genreForSearch = lastSource === "genre" ? selectedGenre : null
-  // Filtered against SELECTABLE_MOOD_IDS too — a mood dropped from
-  // MOOD_OPTIONS (acogedor/reconfortante) can still be sitting in persisted
-  // state from before the cut, and it can never be searched for again.
-  const moodsForSearch =
-    lastSource === "mood" ? selectedMoods.filter((m) => SELECTABLE_MOOD_IDS.has(m)) : NO_MOODS
+  const moodsForSearch = lastSource === "mood" ? selectedMoods : NO_MOODS
 
   const excludeKeys = useMemo(() => new Set(books.map((b) => bookKey(b.title))), [books])
+
+  // Set once, stable for the lifetime of this mount — included in the query
+  // key below so a genuine revisit (a fresh mount, e.g. Mood → Result again)
+  // always fetches and reshuffles, but toggling the wishlist/discover pill
+  // or the "No non-fiction" filter mid-visit (same mount, no unmount) reuses
+  // the one already-fetched result instead of re-hitting Hardcover for no
+  // reason.
+  const visitId = useRef(Date.now()).current
 
   const {
     data: externalBooks = [],
     isLoading: externalLoading,
     isFetching: externalFetching,
   } = useQuery({
-    queryKey: ["external-books", genreForSearch, moodsForSearch],
+    queryKey: ["external-books", visitId, genreForSearch, moodsForSearch],
     queryFn: () => searchExternalBooks(genreForSearch, moodsForSearch, excludeKeys, 200),
     enabled: source === "external",
-    // 0, deliberately: the whole point of shuffling the candidate pool
-    // server-round-trip to round-trip is that revisiting the same mood/genre
-    // gives a genuinely different pick — a positive staleTime here would
-    // silently reuse the same already-shuffled result on every revisit
-    // within the window, which reads as "always the same books" even though
-    // the shuffle itself works. Safe to refetch on every mount: the loading
-    // state below already covers isFetching, not just isLoading, so this
-    // can't reintroduce the old flash-of-stale-content bug.
-    staleTime: 0,
+    // Infinity, deliberately: freshness-per-visit is already guaranteed by
+    // visitId being part of the key above (a new mount = a new key = a real
+    // fetch), so nothing here should mark this same-mount result stale and
+    // trigger a redundant refetch just from toggling source/excludeNonFiction.
+    staleTime: Infinity,
   })
 
   const candidates = useMemo(() => {

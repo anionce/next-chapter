@@ -40,15 +40,27 @@ export interface MoodOption {
 // same underlying reason: a mood you can pick but that can never surface a
 // real match is a dead end, not a feature.
 //
-// Two more moods were cut for the same reason, on an explicit 150-book
-// floor: acogedor/Cozy and reconfortante/Feel-Good only have 72 and 86
-// books *total* on all of Hardcover that both carry the tag and pass the
-// editions_count>=5 quality gate (verified live via a books_aggregate
-// count) — a hard ceiling of Hardcover's own tagging volume, not something
-// any code change can grow. The other 7 all clear 5,800+.
+// Three more moods were cut on an explicit "must actually return real
+// results" floor. acogedor/Cozy and reconfortante/Feel-Good only have 72
+// and 86 books *total* on all of Hardcover that both carry the tag and
+// pass the editions_count>=5 quality gate (verified live via a
+// books_aggregate count) — a hard ceiling of Hardcover's own tagging
+// volume, not something any code change can grow.
+//
+// inquietante/scary is a different, worse failure caught by checking the
+// *real* pipeline output, not just the raw tag count: its raw quality-gated
+// pool (173) clears the floor, but almost none of those books keep "scary"
+// in their own top-3 *weighted* moods (see moodsFromHardcoverTags in
+// externalBooks.ts) — it's a low-volume tag (194 uses site-wide) that gets
+// completely outweighed by "dark"/"tense" (tens of thousands of uses) on
+// the very same books, since a scary book is usually *also* dark/tense and
+// those simply get tagged far more often. Confirmed live: 0 real matches
+// survived out of 113 author-capped candidates. Raw tag-search count alone
+// isn't a reliable predictor of real results — the actual post-scoring
+// count is. The other 6 all clear 150 real matches, comfortably.
 //
 // `MoodId` keeps all 18 values (imported CSV data may still carry the
-// dropped ones), only the picker list is restricted to these 7.
+// dropped ones), only the picker list is restricted to these 6.
 export const MOOD_OPTIONS: MoodOption[] = [
   { id: "atmosferico", label: "Atmosférico", emoji: "🌧" },
   { id: "que-hace-pensar", label: "Que hace pensar", emoji: "🧠" },
@@ -56,7 +68,6 @@ export const MOOD_OPTIONS: MoodOption[] = [
   { id: "suspense", label: "De suspense", emoji: "🔎" },
   { id: "oscuro", label: "Oscuro", emoji: "🕯" },
   { id: "tragico", label: "Trágico", emoji: "💔" },
-  { id: "inquietante", label: "Inquietante", emoji: "😨" },
 ]
 
 /** For sanitizing `selectedMoods` read from persisted storage — a mood

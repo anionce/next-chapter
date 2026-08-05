@@ -1,4 +1,4 @@
-const HARDCOVER_API_URL = "https://api.hardcover.app/v1/graphql"
+import { forwardToHardcover } from "../../src/lib/hardcoverProxy"
 
 /**
  * Server-side proxy for Hardcover's GraphQL API. The browser calls this
@@ -17,19 +17,6 @@ export async function handler(event: { httpMethod: string; body: string | null }
     return { statusCode: 500, body: JSON.stringify({ error: "Missing HARDCOVER_API_KEY" }) }
   }
 
-  try {
-    const upstream = await fetch(HARDCOVER_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: event.body ?? "",
-    })
-    const text = await upstream.text()
-    return {
-      statusCode: upstream.status,
-      headers: { "Content-Type": "application/json" },
-      body: text,
-    }
-  } catch {
-    return { statusCode: 502, body: JSON.stringify({ error: "Upstream request failed" }) }
-  }
+  const { status, bodyText } = await forwardToHardcover(apiKey, event.body ?? "")
+  return { statusCode: status, headers: { "Content-Type": "application/json" }, body: bodyText }
 }
