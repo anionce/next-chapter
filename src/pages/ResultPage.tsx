@@ -188,7 +188,10 @@ export function ResultPage() {
     if (book.source === "external") {
       queryClient.invalidateQueries({ queryKey: ["external-books"] })
     }
-    navigate("/")
+    // Unlike "Read this" (a real decision, closing the loop for today),
+    // "already read" isn't a pick — there's still a book to decide on, so
+    // stay put and move straight to the next candidate instead of leaving.
+    setDismissedIds((prev) => new Set(prev).add(book.id))
   }
 
   if (books.length === 0) {
