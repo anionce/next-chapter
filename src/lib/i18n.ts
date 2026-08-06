@@ -143,7 +143,7 @@ const en: Dict = {
   "compare.eyebrow": "Rank your books",
   "compare.title": "Which did you prefer?",
   "compare.subtitle": "A few quick picks build a real ranking of your taste — used to find books that resemble your actual favorites, not just a 5-star guess.",
-  "compare.needMore": "Mark at least 4 books as read to start ranking them.",
+  "compare.needMore": "Mark at least 50 books as read to start ranking them.",
   "compare.exhausted": "You've compared every combination of your read books — mark another one as read for more.",
   "compare.count": ((n: number) => `${n} ${n === 1 ? "comparison" : "comparisons"} so far`) as Value,
 
@@ -201,7 +201,7 @@ const en: Dict = {
   "library.readEmpty": "Nothing marked as read yet.",
   "library.rankTitle": "Rank your books",
   "library.rankDesc": "Quick head-to-head picks build a real taste profile — used to find new books that resemble your actual favorites.",
-  "library.rankNeedMore": "Mark at least 4 books as read to start.",
+  "library.rankNeedMore": "Mark at least 50 books as read to start.",
   "library.remove": "Remove",
   "library.addTitle": "Add a book",
   "library.addDesc": "Search for a real book instead of typing it in by hand — picks up the title, author, pages, and genre for you.",

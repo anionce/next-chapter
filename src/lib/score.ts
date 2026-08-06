@@ -21,21 +21,26 @@ interface Scored extends ScoredBook {
 
 /** Best-matching favorite for a candidate, if any clears the bar — same-author
  * is treated as the strongest possible signal (a reader who loved one book by
- * someone is a very safe bet for another), then 2+ shared moods, then 1
- * shared mood plus the same genre. Only the single best match counts, so a
- * candidate can't stack bonuses from several loosely-related favorites. */
+ * someone is a very safe bet for another), otherwise 2+ shared moods.
+ * Deliberately does NOT accept "1 shared mood + same genre" — this exact
+ * shortcut was already tried and reverted once before (the old Open-Library-
+ * era version of this feature), for the same reason it's wrong here: genre
+ * is a coarse bucket, so 1 loosely-shared mood plus matching genre keeps
+ * producing "resembles X" claims for books that plainly don't (confirmed
+ * live: Solaris claimed to resemble Station Eleven off exactly this
+ * combination — both "Sci-Fi", one shared mood, otherwise unrelated books).
+ * Only the single best match counts, so a candidate can't stack bonuses from
+ * several loosely-related favorites. */
 function bestFavoriteMatch(book: Book, favorites: Book[]): { favorite: Book; bonus: number } | null {
 	let best: { favorite: Book; bonus: number } | null = null;
 	for (const favorite of favorites) {
 		if (favorite.id === book.id) continue;
 		const sharedMoods = book.moods.filter(m => favorite.moods.includes(m)).length;
-		const sameGenre = book.genre !== 'Unclassified' && book.genre === favorite.genre;
 		const sameAuthor = book.author.toLowerCase() === favorite.author.toLowerCase();
 
 		let bonus = 0;
 		if (sameAuthor) bonus = 20;
 		else if (sharedMoods >= 2) bonus = 12;
-		else if (sharedMoods >= 1 && sameGenre) bonus = 10;
 
 		if (bonus > 0 && (!best || bonus > best.bonus)) best = { favorite, bonus };
 	}

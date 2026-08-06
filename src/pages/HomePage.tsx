@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom"
 import { ModeCard, CARD_COLORS } from "@/components/home/ModeCard"
 import { useLibrary } from "@/hooks/useLibrary"
+import { MIN_COMPARISONS_FOR_FAVORITES } from "@/lib/db"
 import { useT } from "@/lib/i18n"
 import { useReadingStore } from "@/store/useReadingStore"
 import { MOOD_OPTIONS } from "@/lib/moods"
@@ -12,7 +13,10 @@ export function HomePage() {
   const setSource = useReadingStore((s) => s.setSource)
   const books = useLibrary()
   const unreadCount = books.filter((b) => b.status === "unread").length
-  const hasFavorites = books.some((b) => b.eloRating != null)
+  // Each comparison increments eloComparisons on two books at once, so
+  // summing and halving gives the real total made, not per-book noise.
+  const totalComparisons = books.reduce((sum, b) => sum + (b.eloComparisons ?? 0), 0) / 2
+  const hasFavorites = totalComparisons >= MIN_COMPARISONS_FOR_FAVORITES
 
   function handleSurpriseMe() {
     const pick = MOOD_OPTIONS[Math.floor(Math.random() * MOOD_OPTIONS.length)]
@@ -20,9 +24,10 @@ export function HomePage() {
     navigate("/result")
   }
 
-  // Nothing to base a "for you" pick on until you've compared at least a
-  // couple of books — sends you to start ranking instead of landing on an
-  // unpersonalized result that would just be the generic fallback pool.
+  // A book with only 1-2 comparisons has an Elo rating that's mostly noise,
+  // not a real signal — below MIN_COMPARISONS_FOR_FAVORITES, send to
+  // /compare to build up a real ranking instead of landing on a "for you"
+  // result that would just be an unpersonalized fallback pool in disguise.
   function handleForYou() {
     if (!hasFavorites) {
       navigate("/compare")

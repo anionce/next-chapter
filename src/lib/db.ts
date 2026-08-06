@@ -64,10 +64,19 @@ function pairKey(aId: string, bId: string): string {
 }
 
 /** Below this many read books, comparisons stop being worth asking for at
- * all — 2 books means exactly one possible pair, exhausted after a single
- * comparison. 4 gives 6 real pairs, enough for a first session to mean
- * something before running out. */
-export const MIN_BOOKS_TO_COMPARE = 4
+ * all. Raised from an earlier, much lower value on request — a small read
+ * shelf gives too few possible pairs (and too little real spread of taste)
+ * for a ranking to mean anything; 50 books is C(50,2) = 1,225 possible
+ * pairs, plenty of room for a genuinely informative ranking to emerge. */
+export const MIN_BOOKS_TO_COMPARE = 50
+
+/** Below this many actual head-to-head comparisons made, the "For you" home
+ * card treats you as not having a real ranking yet (see HomePage.tsx) —
+ * having *some* books marked read isn't the same as having compared enough
+ * of them for Elo to mean anything; a book with 1 or 2 comparisons has a
+ * rating that's still mostly noise, not a real signal of what you actually
+ * prefer. */
+export const MIN_COMPARISONS_FOR_FAVORITES = 20
 
 export type ComparisonPairResult =
   | { status: "ok"; pair: [Book, Book] }

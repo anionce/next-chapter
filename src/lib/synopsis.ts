@@ -108,17 +108,62 @@ function cleanReviewQuote(html: string): string | null {
   return (lastSpace > 100 ? truncated.slice(0, lastSpace) : truncated) + "…"
 }
 
+/** Hardcover reviews are written in whatever language the reviewer used —
+ * this app is English-only (see useLanguageStore.ts), so a Spanish/French/
+ * etc. quote would be the one piece of non-English text on the page.
+ * No language-detection library here, just a cheap positive check: real
+ * English text almost always contains several of the handful of words that
+ * appear in nearly every English sentence, at a density foreign-language
+ * text won't have by chance. */
+const ENGLISH_STOPWORDS = new Set([
+  "the",
+  "and",
+  "was",
+  "this",
+  "that",
+  "with",
+  "for",
+  "have",
+  "are",
+  "but",
+  "you",
+  "from",
+  "not",
+  "its",
+  "been",
+  "were",
+  "they",
+  "she",
+  "he",
+  "it",
+  "of",
+  "to",
+  "is",
+  "a",
+])
+
+function looksEnglish(text: string): boolean {
+  const words = text.toLowerCase().split(/\s+/)
+  let matches = 0
+  for (const w of words) {
+    if (ENGLISH_STOPWORDS.has(w.replace(/[^a-z']/g, ""))) matches++
+    if (matches >= 3) return true
+  }
+  return false
+}
+
 interface ReviewRow {
   review: string
 }
 
 /**
  * A short excerpt from a real, positive reader review — `rating >= 4` (of
- * Hardcover's 5-star scale) and never spoiler-flagged, ordered by
- * `likes_count` so a genuinely well-regarded take wins over an arbitrary
- * one. Several candidates are fetched, not just one, since an individual
- * review can clean down to `null` (too short once markup is stripped) —
- * the first one that survives cleaning wins.
+ * Hardcover's 5-star scale), never spoiler-flagged, and only ever English
+ * (see `looksEnglish` above) — ordered by `likes_count` so a genuinely
+ * well-regarded take wins over an arbitrary one. Several candidates are
+ * fetched, not just one, since an individual review can clean down to
+ * `null` (too short once markup is stripped) or fail the language check —
+ * the first one that survives both wins.
  */
 async function fetchPositiveReviewQuote(bookId: number): Promise<string | undefined> {
   const data = await hardcoverQuery<{ user_books: ReviewRow[] }>(
@@ -126,14 +171,14 @@ async function fetchPositiveReviewQuote(bookId: number): Promise<string | undefi
       user_books(
         where: {book_id: {_eq: $bookId}, has_review: {_eq: true}, review_has_spoilers: {_eq: false}, rating: {_gte: 4}}
         order_by: {likes_count: desc}
-        limit: 5
+        limit: 8
       ) { review }
     }`,
     { bookId }
   )
   for (const row of data?.user_books ?? []) {
     const cleaned = cleanReviewQuote(row.review)
-    if (cleaned) return cleaned
+    if (cleaned && looksEnglish(cleaned)) return cleaned
   }
   return undefined
 }
