@@ -447,6 +447,18 @@ export async function searchExternalBooks(
  * search) *and* the usual genre pool, in parallel, then interleaves them —
  * author-catalog matches first (rarer and a stronger signal), the genre
  * pool filling out the rest.
+ *
+ * 3, not all of `favorites` (up to 10) — tried raising this to 6 first
+ * (each extra author means 2 more sequential Hardcover calls: resolve the
+ * author id, then fetch their books) and measured a real, non-linear
+ * latency cliff, not just session noise: 3 authors ≈1.7s, 4 ≈3.5s, 6
+ * ≈10.5s — almost certainly Hardcover's own rate limiting kicking in past
+ * a handful of concurrent requests. `bestFavoriteMatch` already checks
+ * every candidate against the *full* favorites list when scoring regardless
+ * of how many got a direct catalog search here, so an author outside the
+ * top 3 can still credit a match if their book turns up in the genre pool
+ * anyway — this cap only limits how proactively we go looking, not who can
+ * count, which is what makes staying conservative here an acceptable trade.
  */
 export async function searchByFavorites(
   favorites: Book[],
@@ -454,39 +466,49 @@ export async function searchByFavorites(
   excludeKeys: Set<string>,
   limit = 200
 ): Promise<Book[]> {
-  const authors: string[] = []
-  const seenAuthors = new Set<string>()
+  const topAuthors: string[] = []
+  const seenTopAuthors = new Set<string>()
   for (const b of favorites) {
     const key = b.author.toLowerCase()
-    if (seenAuthors.has(key)) continue
-    seenAuthors.add(key)
-    authors.push(b.author)
-    if (authors.length >= 3) break
+    if (seenTopAuthors.has(key)) continue
+    seenTopAuthors.add(key)
+    topAuthors.push(b.author)
+    if (topAuthors.length >= 3) break
   }
 
   const [authorResults, genrePool] = await Promise.all([
-    Promise.all(authors.map((author) => searchExternalByFilters({ author, excludeKeys, limit: 30 }))),
+    Promise.all(topAuthors.map((author) => searchExternalByFilters({ author, excludeKeys, limit: 30 }))),
     searchExternalBooks(fallbackGenre, [], excludeKeys, limit),
   ])
 
+  // One book per author in the final pool — the same rule searchExternalBooks
+  // already enforces, applied here too. Without it, a single favorite
+  // author's entire fetched catalog (up to 30 books, every one carrying the
+  // same-author scoring bonus — the strongest tier bestFavoriteMatch has)
+  // dominates the ranked results outright: every "For you" pick ends up
+  // being that one author, again and again, until their whole catalog is
+  // exhausted, before any other favorite or the genre pool ever gets a turn.
   const seen = new Set(excludeKeys)
+  const authorSeen = new Set<string>()
   const merged: Book[] = []
-  for (const list of authorResults) {
-    for (const book of list) {
-      if (merged.length >= limit) break
-      const key = bookKey(book.title)
-      if (seen.has(key)) continue
-      seen.add(key)
-      merged.push(book)
-    }
-  }
-  for (const book of genrePool) {
-    if (merged.length >= limit) break
+  function addIfNew(book: Book | undefined) {
+    if (!book || merged.length >= limit) return
     const key = bookKey(book.title)
-    if (seen.has(key)) continue
+    if (seen.has(key)) return
+    const authorKey = book.author.toLowerCase()
+    if (authorSeen.has(authorKey)) return
     seen.add(key)
+    authorSeen.add(authorKey)
     merged.push(book)
   }
+  // Round-robin across favorite authors (not one author's whole list before
+  // the next) so whichever single book survives the per-author cap for each
+  // is drawn from a genuine mix from the start, not just whoever came first.
+  const maxAuthorListLength = Math.max(0, ...authorResults.map((list) => list.length))
+  for (let i = 0; i < maxAuthorListLength; i++) {
+    for (const list of authorResults) addIfNew(list[i])
+  }
+  for (const book of genrePool) addIfNew(book)
 
   return merged
 }
