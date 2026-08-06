@@ -176,6 +176,21 @@ export function ResultPage() {
     navigate("/")
   }
 
+  // Always available, on any result — an external discovery is frequently
+  // something you've genuinely already read in real life but never tracked
+  // here (this app has no way to know that on its own), and a wishlist book
+  // showing up as "already read" is a real, if rarer, case too. `book`
+  // already carries its own real id either way, so a single `mergeIntoLibrary`
+  // call correctly updates the existing local record or inserts the external
+  // one, without needing to branch on which case this is.
+  async function handleAlreadyRead(book: Book) {
+    await mergeIntoLibrary([{ ...book, status: "read", source: book.source === "external" ? "added" : book.source }])
+    if (book.source === "external") {
+      queryClient.invalidateQueries({ queryKey: ["external-books"] })
+    }
+    navigate("/")
+  }
+
   if (books.length === 0) {
     return <p className="text-sm text-muted-foreground">Loading your library…</p>
   }
@@ -345,6 +360,13 @@ export function ResultPage() {
           disabled={ranked.length <= 1}
         >
           {t("result.notToday")}
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-11 px-2 text-[13px] text-muted-foreground"
+          onClick={() => handleAlreadyRead(featured.book)}
+        >
+          {t("result.alreadyRead")}
         </Button>
       </div>
     </div>

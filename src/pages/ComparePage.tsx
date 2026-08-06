@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { Button } from "@/components/ui/button"
 import { BookCover } from "@/components/result/BookCover"
-import { pickComparisonPair, recordComparison, type ComparisonPairResult } from "@/lib/db"
+import { db, pickComparisonPair, recordComparison, undoLastComparison, type ComparisonPairResult } from "@/lib/db"
+import { fetchBookCoverUrl } from "@/lib/synopsis"
 import { useLibrary } from "@/hooks/useLibrary"
 import { useT } from "@/lib/i18n"
 
@@ -15,22 +17,53 @@ export function ComparePage() {
   const readCount = books.filter((b) => b.status === "read").length
 
   const [result, setResult] = useState<ComparisonPairResult | undefined>(undefined)
-  const [count, setCount] = useState(0)
+  // The real total from Dexie, not a session-local counter — undo needs to
+  // work even for a comparison made in an earlier visit, so "is there
+  // anything to undo" has to reflect actual history, not just this page load.
+  const [totalComparisons, setTotalComparisons] = useState<number | null>(null)
+  // Local library books rarely carry a cover of their own (CSV imports
+  // almost never do) — fetched per book id once its pair loads, skipped
+  // entirely for books that already have one.
+  const [fetchedCovers, setFetchedCovers] = useState<Record<string, string>>({})
 
   const loadPair = useCallback(async () => {
     setResult(await pickComparisonPair())
   }, [])
 
+  const refreshTotal = useCallback(async () => {
+    setTotalComparisons(await db.comparisons.count())
+  }, [])
+
   useEffect(() => {
     loadPair()
-  }, [loadPair, readCount])
+    refreshTotal()
+  }, [loadPair, refreshTotal, readCount])
+
+  useEffect(() => {
+    if (result?.status !== "ok") return
+    for (const book of result.pair) {
+      if (book.coverUrl || book.coverId || book.isbn || fetchedCovers[book.id]) continue
+      fetchBookCoverUrl(book.title, book.author).then((url) => {
+        if (url) setFetchedCovers((prev) => ({ ...prev, [book.id]: url }))
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result])
 
   async function handlePick(winnerId: string) {
     if (result?.status !== "ok") return
     const [a, b] = result.pair
     await recordComparison(a, b, winnerId)
-    setCount((c) => c + 1)
+    await refreshTotal()
     loadPair()
+  }
+
+  async function handleUndo() {
+    const undone = await undoLastComparison()
+    if (undone) {
+      await refreshTotal()
+      loadPair()
+    }
   }
 
   return (
@@ -71,7 +104,7 @@ export function ComparePage() {
                   author={book.author}
                   isbn={book.isbn}
                   coverId={book.coverId}
-                  coverUrl={book.coverUrl}
+                  coverUrl={book.coverUrl ?? fetchedCovers[book.id]}
                 />
                 <div className="min-w-0">
                   <strong className="block text-[13.5px] font-semibold text-balance">{book.title}</strong>
@@ -80,8 +113,15 @@ export function ComparePage() {
               </button>
             ))}
           </div>
-          {count > 0 && (
-            <p className="mt-6 text-center text-[12.5px] text-muted-foreground">{t("compare.count", count)}</p>
+          {!!totalComparisons && (
+            <div className="mt-6 flex flex-col items-center gap-2">
+              <p className="text-center text-[12.5px] text-muted-foreground">
+                {t("compare.count", totalComparisons)}
+              </p>
+              <Button variant="ghost" className="h-9 px-3 text-[12.5px] text-muted-foreground" onClick={handleUndo}>
+                {t("compare.undo")}
+              </Button>
+            </div>
           )}
         </>
       )}

@@ -146,6 +146,7 @@ const en: Dict = {
   "compare.needMore": "Mark at least 50 books as read to start ranking them.",
   "compare.exhausted": "You've compared every combination of your read books — mark another one as read for more.",
   "compare.count": ((n: number) => `${n} ${n === 1 ? "comparison" : "comparisons"} so far`) as Value,
+  "compare.undo": "Undo last comparison",
 
   "result.eyebrow": "Your read for today",
   "result.searching": "Finding your next read…",
@@ -154,6 +155,7 @@ const en: Dict = {
   "result.readThis": "Read this.",
   "result.addWishlist": "Add to my wishlist",
   "result.notToday": "Next",
+  "result.alreadyRead": "I've already read this",
   "result.pagesUnknown": "page count unknown",
 
   "filters.eyebrow": "Advanced filters",

@@ -9,6 +9,16 @@ export interface Comparison {
   bookBId: string
   winnerId: string
   comparedAt: number
+  // Snapshot of both books' rating state immediately before this comparison
+  // — undo restores these exact values rather than trying to reverse the
+  // Elo math itself (which isn't safely invertible in general; a plain
+  // subtraction of the last delta would only be correct if you could prove
+  // neither book had been touched since, which a snapshot sidesteps
+  // entirely by construction).
+  previousRatingA: number
+  previousRatingB: number
+  previousComparisonsA: number
+  previousComparisonsB: number
 }
 
 export const db = new Dexie("next-chapter") as Dexie & {
@@ -120,15 +130,54 @@ export async function pickComparisonPair(): Promise<ComparisonPairResult> {
 }
 
 /** Updates both books' Elo ratings from a single head-to-head result and
- * logs the matchup (so `pickComparisonPair` won't immediately re-ask it). */
+ * logs the matchup (so `pickComparisonPair` won't immediately re-ask it,
+ * and `undoLastComparison` can restore the exact prior state). */
 export async function recordComparison(bookA: Book, bookB: Book, winnerId: string): Promise<void> {
   const ratingA = bookA.eloRating ?? DEFAULT_ELO
   const ratingB = bookB.eloRating ?? DEFAULT_ELO
+  const comparisonsA = bookA.eloComparisons ?? 0
+  const comparisonsB = bookB.eloComparisons ?? 0
   const [newA, newB] = updateElo(ratingA, ratingB, winnerId === bookA.id ? "A" : "B")
 
   await db.transaction("rw", db.books, db.comparisons, async () => {
-    await db.books.update(bookA.id, { eloRating: newA, eloComparisons: (bookA.eloComparisons ?? 0) + 1 })
-    await db.books.update(bookB.id, { eloRating: newB, eloComparisons: (bookB.eloComparisons ?? 0) + 1 })
-    await db.comparisons.add({ bookAId: bookA.id, bookBId: bookB.id, winnerId, comparedAt: Date.now() })
+    await db.books.update(bookA.id, { eloRating: newA, eloComparisons: comparisonsA + 1 })
+    await db.books.update(bookB.id, { eloRating: newB, eloComparisons: comparisonsB + 1 })
+    await db.comparisons.add({
+      bookAId: bookA.id,
+      bookBId: bookB.id,
+      winnerId,
+      comparedAt: Date.now(),
+      previousRatingA: ratingA,
+      previousRatingB: ratingB,
+      previousComparisonsA: comparisonsA,
+      previousComparisonsB: comparisonsB,
+    })
   })
+}
+
+/**
+ * Reverts the single most recent comparison — restores both books' rating
+ * and comparison-count to their exact pre-comparison snapshot and removes
+ * the log entry, so `pickComparisonPair` can ask that pair again. Calling
+ * this repeatedly walks back through history one step at a time (each undo
+ * just operates on whatever the new "most recent" comparison now is), for
+ * "actually I meant to pick the other one" mistakes. Returns `false` with
+ * nothing to undo (an empty comparison history) rather than throwing.
+ */
+export async function undoLastComparison(): Promise<boolean> {
+  const last = await db.comparisons.orderBy("comparedAt").last()
+  if (!last) return false
+
+  await db.transaction("rw", db.books, db.comparisons, async () => {
+    await db.books.update(last.bookAId, {
+      eloRating: last.previousRatingA,
+      eloComparisons: last.previousComparisonsA,
+    })
+    await db.books.update(last.bookBId, {
+      eloRating: last.previousRatingB,
+      eloComparisons: last.previousComparisonsB,
+    })
+    await db.comparisons.delete(last.id!)
+  })
+  return true
 }
