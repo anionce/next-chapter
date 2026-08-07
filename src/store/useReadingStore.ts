@@ -2,7 +2,7 @@ import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import { SELECTABLE_MOOD_IDS, type MoodId } from "@/lib/moods"
 
-export type ReadingSource = "mood" | "genre" | "surprise" | "favorites"
+export type ReadingSource = "mood" | "genre" | "surprise"
 
 interface ReadingState {
   selectedMoods: MoodId[]

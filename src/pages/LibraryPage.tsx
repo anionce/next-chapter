@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { useLibrary } from "@/hooks/useLibrary"
 import { parseLibraryCsv, type ImportResult } from "@/lib/csv"
-import { mergeIntoLibrary, replaceLibrary, removeFromLibrary, MIN_BOOKS_TO_COMPARE } from "@/lib/db"
+import { mergeIntoLibrary, replaceLibrary, removeFromLibrary } from "@/lib/db"
+import { useAuth } from "@/hooks/useAuth"
 import { searchBooksByQuery } from "@/lib/externalBooks"
 import { genreLabel } from "@/lib/genres"
 import { useT } from "@/lib/i18n"
@@ -57,6 +58,7 @@ function BookSection({ title, emptyText, books, lang, onRemove, removeLabel }: B
 export function LibraryPage() {
   const navigate = useNavigate()
   const { t, lang } = useT()
+  const { user } = useAuth()
   const books = useLibrary()
   const fileRef = useRef<HTMLInputElement>(null)
   const [pending, setPending] = useState<ImportResult | null>(null)
@@ -103,7 +105,7 @@ export function LibraryPage() {
   async function handleAddSelected() {
     if (!selectedBook) return
     setAdding(true)
-    await mergeIntoLibrary([{ ...selectedBook, status: addStatus, source: "added" }])
+    await mergeIntoLibrary(uid, [{ ...selectedBook, status: addStatus, source: "added" }])
     setAdding(false)
     setSelectedBook(null)
     setQuery("")
@@ -118,6 +120,13 @@ export function LibraryPage() {
     () => books.filter((b) => b.status === "read").sort((a, b) => a.title.localeCompare(b.title)),
     [books]
   )
+
+  // AppShell only renders this route once signed in, but auth state can
+  // still flip to null for a render or two (e.g. another tab signing out) —
+  // bail rather than crash on a stale uid. Placed after every hook above so
+  // the early return never changes the hook count between renders.
+  if (!user) return null
+  const uid = user.uid
 
   async function handleFile(file: File) {
     setError(null)
@@ -139,8 +148,8 @@ export function LibraryPage() {
   async function commit(mode: "merge" | "replace") {
     if (!pending) return
     setBusy(true)
-    if (mode === "replace") await replaceLibrary(pending.books)
-    else await mergeIntoLibrary(pending.books)
+    if (mode === "replace") await replaceLibrary(uid, pending.books)
+    else await mergeIntoLibrary(uid, pending.books)
     setBusy(false)
     setPending(null)
   }
@@ -169,7 +178,7 @@ export function LibraryPage() {
         emptyText={t("library.wishlistEmpty")}
         books={wishlist}
         lang={lang}
-        onRemove={removeFromLibrary}
+        onRemove={(id) => removeFromLibrary(uid, id)}
         removeLabel={t("library.remove")}
       />
       <BookSection
@@ -177,24 +186,9 @@ export function LibraryPage() {
         emptyText={t("library.readEmpty")}
         books={read}
         lang={lang}
-        onRemove={removeFromLibrary}
+        onRemove={(id) => removeFromLibrary(uid, id)}
         removeLabel={t("library.remove")}
       />
-
-      <button
-        type="button"
-        onClick={() => navigate("/compare")}
-        disabled={read.length < MIN_BOOKS_TO_COMPARE}
-        className="mb-6 flex w-full cursor-pointer items-center justify-between rounded-2xl border border-dashed border-primary/40 bg-accent p-5 text-left transition-transform enabled:hover:-translate-y-0.5 enabled:hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <div>
-          <p className="mb-1 text-sm font-semibold text-accent-foreground">{t("library.rankTitle")}</p>
-          <p className="text-[13px] text-accent-foreground/80">
-            {read.length < MIN_BOOKS_TO_COMPARE ? t("library.rankNeedMore") : t("library.rankDesc")}
-          </p>
-        </div>
-        <span className="shrink-0 text-lg text-accent-foreground">→</span>
-      </button>
 
       <div className="mb-6 rounded-2xl border border-border bg-card p-5">
         <p className="mb-1 text-sm font-semibold">{t("library.addTitle")}</p>

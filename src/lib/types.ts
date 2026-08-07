@@ -2,12 +2,12 @@ import type { MoodId, Season } from "@/lib/moods"
 
 export type BookSource = "seed" | "goodreads" | "storygraph" | "external" | "added"
 
-/** "read" books are never recommended — they only feed the favorites/taste
- * signal. Deliberately just two states, not three — a "reading" status used
- * to exist between them and was cut: the only thing it changed was where a
- * book sat in the library list, and simplifying to a plain wishlist/read
- * split removed a whole real state (and every place that had to account
- * for it) for something that turned out not to matter. */
+/** "read" books are never recommended back to you. Deliberately just two
+ * states, not three — a "reading" status used to exist between them and was
+ * cut: the only thing it changed was where a book sat in the library list,
+ * and simplifying to a plain wishlist/read split removed a whole real state
+ * (and every place that had to account for it) for something that turned
+ * out not to matter. */
 export type ReadStatus = "unread" | "read"
 
 export interface Book {
@@ -30,14 +30,6 @@ export interface Book {
   status: ReadStatus
   rating?: number
   source: BookSource
-  /** Elo rating from head-to-head "which did you prefer?" comparisons
-   * (src/pages/ComparePage.tsx) — undefined until the book has been in at
-   * least one matchup. A far stronger taste signal than `rating` (a 1-5
-   * star score is absolute and noisy; a pairwise pick is a much easier,
-   * more honest judgment), and what drives the "resembles your favorites"
-   * recommendation bonus in score.ts. */
-  eloRating?: number
-  eloComparisons?: number
 }
 
 export interface ScoredBook {

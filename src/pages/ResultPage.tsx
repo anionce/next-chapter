@@ -4,13 +4,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { BookCover } from "@/components/result/BookCover"
 import { rankBooks } from "@/lib/score"
-import { searchExternalBooks, searchByFavorites, bookKey } from "@/lib/externalBooks"
+import { searchExternalBooks, bookKey } from "@/lib/externalBooks"
 import { fetchSynopsis } from "@/lib/synopsis"
 import { genreLabel, NON_FICTION_GENRES } from "@/lib/genres"
 import { useT } from "@/lib/i18n"
 import { useReadingStore } from "@/store/useReadingStore"
 import { useLibrary } from "@/hooks/useLibrary"
 import { mergeIntoLibrary, markAsRead } from "@/lib/db"
+import { useAuth } from "@/hooks/useAuth"
 import { cn } from "@/lib/utils"
 import type { Book } from "@/lib/types"
 import type { MoodId } from "@/lib/moods"
@@ -31,6 +32,7 @@ export function ResultPage() {
   // selectedMoods is guaranteed to only ever contain MOOD_OPTIONS ids — the
   // store itself sanitizes on rehydration (see useReadingStore.ts).
   const { selectedMoods, selectedGenre, lastSource, excludeNonFiction, toggleExcludeNonFiction } = useReadingStore()
+  const { user } = useAuth()
   const books = useLibrary()
   const [addedKeys, setAddedKeys] = useState<Set<string>>(new Set())
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
@@ -51,53 +53,11 @@ export function ResultPage() {
     setDismissedIds(new Set())
   }
 
-  // Top Elo-ranked read books (src/pages/ComparePage.tsx) — undefined for
-  // anyone who hasn't compared any books yet, in which case this is just an
-  // empty array and scoreBook's favorite-affinity bonus never fires.
-  const favorites = useMemo(
-    () =>
-      books
-        .filter((b) => b.eloRating != null)
-        .sort((a, b) => (b.eloRating ?? 0) - (a.eloRating ?? 0))
-        .slice(0, 10),
-    [books]
-  )
-
-  // The genre your favorites lean toward most, if any — used to scope the
-  // "For you" search to a relevant candidate pool (majority-vote, same
-  // pattern as genreFromHardcoverTags) rather than falling back to a generic
-  // "Fiction" search that the favorite-affinity bonus alone would have to
-  // rerank from scratch.
-  const favoriteGenre = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const b of favorites) {
-      if (b.genre === "Unclassified") continue
-      counts.set(b.genre, (counts.get(b.genre) ?? 0) + 1)
-    }
-    let best: string | null = null
-    let bestCount = 0
-    for (const [genre, count] of counts) {
-      if (count > bestCount) {
-        best = genre
-        bestCount = count
-      }
-    }
-    return best
-  }, [favorites])
-
   // Scope every preference to the flow that actually produced it — the
   // store persists selectedMoods/selectedGenre indefinitely, so without
   // this a stale Mood selection could silently leak into a Genre-sourced
   // search and result.
-  const genreForSearch =
-    lastSource === "genre" ? selectedGenre : lastSource === "favorites" ? favoriteGenre : null
-  // Deliberately narrower than genreForSearch: `favoriteGenre` scopes the
-  // *search* to something relevant, but it was never actually asked for —
-  // it's inferred from your ranking, the same way Surprise Me's mood is
-  // assigned rather than chosen. Feeding it into rankBooks' `genre` would
-  // produce a false "It's thriller, as requested" reason on a "For you"
-  // result. Only a real, explicit Genre-page pick counts as "requested".
-  const genreForScoring = lastSource === "genre" ? selectedGenre : null
+  const genreForSearch = lastSource === "genre" ? selectedGenre : null
   // "surprise" (Surprise Me) searches on the same randomly-assigned mood as
   // a real Mood pick — only the UI treatment differs (see the reasons panel
   // below, which is hidden for "surprise" since the user never actually
@@ -119,11 +79,8 @@ export function ResultPage() {
     isLoading: externalLoading,
     isFetching: externalFetching,
   } = useQuery({
-    queryKey: ["external-books", visitId, lastSource, genreForSearch, moodsForSearch, favorites],
-    queryFn: () =>
-      lastSource === "favorites"
-        ? searchByFavorites(favorites, favoriteGenre, excludeKeys, 200)
-        : searchExternalBooks(genreForSearch, moodsForSearch, excludeKeys, 200),
+    queryKey: ["external-books", visitId, lastSource, genreForSearch, moodsForSearch],
+    queryFn: () => searchExternalBooks(genreForSearch, moodsForSearch, excludeKeys, 200),
     enabled: source === "external",
     // Infinity, deliberately: freshness-per-visit is already guaranteed by
     // visitId being part of the key above (a new mount = a new key = a real
@@ -145,9 +102,9 @@ export function ResultPage() {
   }, [source, books, externalBooks, excludeKeys, addedKeys, excludeNonFiction])
 
   const ranked = useMemo(() => {
-    const all = rankBooks(candidates, { moods: moodsForSearch, genre: genreForScoring, favorites }, 200)
+    const all = rankBooks(candidates, { moods: moodsForSearch, genre: genreForSearch }, 200)
     return all.filter((r) => !dismissedIds.has(r.book.id))
-  }, [candidates, moodsForSearch, genreForScoring, favorites, dismissedIds])
+  }, [candidates, moodsForSearch, genreForSearch, dismissedIds])
 
   const featured = ranked[0]
 
@@ -166,13 +123,13 @@ export function ResultPage() {
   }
 
   async function handleAdd(book: Book) {
-    await mergeIntoLibrary([{ ...book, source: "added" }])
+    await mergeIntoLibrary(uid, [{ ...book, source: "added" }])
     setAddedKeys((prev) => new Set(prev).add(bookKey(book.title)))
     queryClient.invalidateQueries({ queryKey: ["external-books"] })
   }
 
   async function handleReadThis(book: Book) {
-    await markAsRead(book.id)
+    await markAsRead(uid, book.id)
     navigate("/")
   }
 
@@ -184,7 +141,9 @@ export function ResultPage() {
   // call correctly updates the existing local record or inserts the external
   // one, without needing to branch on which case this is.
   async function handleAlreadyRead(book: Book) {
-    await mergeIntoLibrary([{ ...book, status: "read", source: book.source === "external" ? "added" : book.source }])
+    await mergeIntoLibrary(uid, [
+      { ...book, status: "read", source: book.source === "external" ? "added" : book.source },
+    ])
     if (book.source === "external") {
       queryClient.invalidateQueries({ queryKey: ["external-books"] })
     }
@@ -193,6 +152,13 @@ export function ResultPage() {
     // stay put and move straight to the next candidate instead of leaving.
     setDismissedIds((prev) => new Set(prev).add(book.id))
   }
+
+  // AppShell only renders this route once signed in, but auth state can
+  // still flip to null for a render or two (e.g. another tab signing out) —
+  // bail rather than crash on a stale uid. Placed after every hook above so
+  // the early return never changes the hook count between renders.
+  if (!user) return null
+  const uid = user.uid
 
   if (books.length === 0) {
     return <p className="text-sm text-muted-foreground">Loading your library…</p>

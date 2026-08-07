@@ -184,18 +184,6 @@ async function fetchPositiveReviewQuote(bookId: number): Promise<string | undefi
 }
 
 /**
- * Cover-only lookup — same candidate resolution as `fetchSynopsis` (real
- * engagement wins over knockoffs), but skips the description-cleaning and
- * review-fetching work for callers that only need an image (ComparePage.tsx,
- * for local-library books whose CSV import never carried a cover of their
- * own). Fails soft: `undefined` on any miss, never an error.
- */
-export async function fetchBookCoverUrl(title: string, author: string): Promise<string | undefined> {
-  const candidate = await findBestCandidate(title, author)
-  return candidate?.image?.url
-}
-
-/**
  * Fetches and sanitizes a book's Hardcover description (plus its cover and
  * a positive review quote, for callers that want them). Fails soft: any
  * miss along the way is `null`/`undefined`, never an error the caller has
